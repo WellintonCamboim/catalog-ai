@@ -6,7 +6,7 @@ import { signToken } from './token.js';
 import { User, type UserDoc } from './user.model.js';
 
 const BCRYPT_COST = 10;
-// Hash descartável: login de e-mail inexistente gasta o mesmo tempo que um existente.
+// Compared against when the e-mail is unknown, so login takes the same time either way.
 const DUMMY_HASH = bcrypt.hashSync('dummy-password', BCRYPT_COST);
 
 type PublicUser = {
@@ -67,7 +67,7 @@ export async function register(input: RegisterInput) {
     });
     return issue(toPublicUser(user));
   } catch (err) {
-    // Sem transação (Mongo standalone): desfaz a empresa recém-criada.
+    // No transactions on standalone Mongo: undo the company created above.
     if (createdCompanyId) await Company.deleteOne({ _id: createdCompanyId });
     if ((err as { code?: number }).code === 11000) throw conflict('E-mail já cadastrado');
     throw err;
@@ -91,7 +91,6 @@ export async function getProfile(userId: string, companyId: string) {
     company: {
       id: String(company._id),
       name: company.name,
-      // O código de convite é segredo de admin.
       ...(user.role === 'admin' ? { inviteCode: company.inviteCode } : {}),
     },
   };

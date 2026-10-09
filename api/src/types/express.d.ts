@@ -3,7 +3,7 @@ import type { AuthContext } from '../modules/auth/token.js';
 declare global {
   namespace Express {
     interface Request {
-      /** Preenchido pelo middleware `authenticate`. Fonte única de verdade do tenant. */
+      /** Set by `authenticate`. The only trusted source of the tenant (companyId). */
       auth?: AuthContext;
     }
   }

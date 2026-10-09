@@ -26,7 +26,7 @@ export function signToken(ctx: AuthContext): string {
 
 export function verifyToken(token: string): AuthContext {
   try {
-    // Algoritmo fixado: evita ataques de downgrade (ex.: alg "none").
+    // Pin the algorithm to prevent downgrade attacks (e.g. alg "none").
     const decoded = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] });
     const payload = payloadSchema.parse(decoded);
     return { userId: payload.sub, companyId: payload.companyId, role: payload.role };

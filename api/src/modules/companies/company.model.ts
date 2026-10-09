@@ -4,7 +4,7 @@ import { Schema, model, type InferSchemaType } from 'mongoose';
 const companySchema = new Schema(
   {
     name: { type: String, required: true, trim: true, maxlength: 120 },
-    // Código que o admin compartilha para convidar usuários (role "user") para a empresa.
+    // Shared by the admin to invite users (role "user") into the company.
     inviteCode: {
       type: String,
       required: true,

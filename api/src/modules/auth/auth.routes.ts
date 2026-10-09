@@ -6,7 +6,6 @@ import { validate } from '../../middlewares/validate.js';
 import * as controller from './auth.controller.js';
 import { loginSchema, registerSchema } from './auth.schemas.js';
 
-// Freia força bruta de senha e criação em massa de contas.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 30,

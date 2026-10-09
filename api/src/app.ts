@@ -17,7 +17,6 @@ export function createApp() {
   });
 
   app.use('/auth', authRouter);
-  // Os routers de products e chat serão montados aqui.
 
   app.use(notFoundHandler);
   app.use(errorHandler);

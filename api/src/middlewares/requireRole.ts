@@ -2,7 +2,6 @@ import type { RequestHandler } from 'express';
 import { forbidden, unauthorized } from '../lib/errors.js';
 import type { Role } from '../modules/auth/user.model.js';
 
-/** Deve vir depois de `authenticate`. */
 export const requireRole =
   (...roles: Role[]): RequestHandler =>
   (req, _res, next) => {

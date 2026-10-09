@@ -43,14 +43,12 @@ describe('POST /auth/register', () => {
     const me = await request(app)
       .get('/auth/me')
       .set('Authorization', `Bearer ${admin.body.token}`);
-    const res = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Beto',
-        email: 'beto@a.com',
-        password: 'senha-forte-1',
-        inviteCode: me.body.company.inviteCode,
-      });
+    const res = await request(app).post('/auth/register').send({
+      name: 'Beto',
+      email: 'beto@a.com',
+      password: 'senha-forte-1',
+      inviteCode: me.body.company.inviteCode,
+    });
     expect(res.status).toBe(201);
     expect(res.body.user.role).toBe('user');
     expect(res.body.user.companyId).toBe(admin.body.user.companyId);
@@ -65,7 +63,7 @@ describe('POST /auth/register', () => {
     await request(app).post('/auth/register').send(adminBody);
     const dup = await request(app).post('/auth/register').send(adminBody);
     expect(dup.status).toBe(409);
-    expect(await Company.countDocuments()).toBe(1); // não deixou empresa órfã
+    expect(await Company.countDocuments()).toBe(1);
 
     const both = await request(app)
       .post('/auth/register')
@@ -97,14 +95,12 @@ describe('POST /auth/login e GET /auth/me', () => {
     expect(me.status).toBe(200);
     expect(me.body.company.inviteCode).toEqual(expect.any(String));
 
-    const user = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Beto',
-        email: 'beto@a.com',
-        password: 'senha-forte-1',
-        inviteCode: me.body.company.inviteCode,
-      });
+    const user = await request(app).post('/auth/register').send({
+      name: 'Beto',
+      email: 'beto@a.com',
+      password: 'senha-forte-1',
+      inviteCode: me.body.company.inviteCode,
+    });
     const meUser = await request(app)
       .get('/auth/me')
       .set('Authorization', `Bearer ${user.body.token}`);
@@ -138,14 +134,12 @@ describe('authenticate / requireRole', () => {
     const me = await request(app)
       .get('/auth/me')
       .set('Authorization', `Bearer ${admin.body.token}`);
-    const u = await request(app)
-      .post('/auth/register')
-      .send({
-        name: 'Beto',
-        email: 'beto@a.com',
-        password: 'senha-forte-1',
-        inviteCode: me.body.company.inviteCode,
-      });
+    const u = await request(app).post('/auth/register').send({
+      name: 'Beto',
+      email: 'beto@a.com',
+      password: 'senha-forte-1',
+      inviteCode: me.body.company.inviteCode,
+    });
     return u.body.token as string;
   }
 
