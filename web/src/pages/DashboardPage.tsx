@@ -198,6 +198,7 @@ export function DashboardPage() {
       {(dialog?.type === 'create' || dialog?.type === 'edit') && (
         <ProductModal
           product={dialog.type === 'edit' ? dialog.product : undefined}
+          categories={categories.data?.items ?? []}
           onClose={() => setDialog(null)}
           onSubmit={(input, image) => save.mutateAsync({ input, image }).then(() => undefined)}
         />

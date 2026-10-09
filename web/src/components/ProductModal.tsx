@@ -9,20 +9,22 @@ export interface ImageChange {
   remove: boolean;
 }
 
+const NEW_CATEGORY = '__new__';
+
 interface Props {
   product?: Product;
+  categories: string[];
   onSubmit: (input: ProductInput, image: ImageChange) => Promise<void>;
   onClose: () => void;
 }
 
-export function ProductModal({ product, onSubmit, onClose }: Props) {
+export function ProductModal({ product, categories, onSubmit, onClose }: Props) {
   const [form, setForm] = useState({
     name: product?.name ?? '',
     description: product?.description ?? '',
     price: product ? String(product.price) : '',
-    category: product?.category ?? '',
-    // A path under /uploads is managed through the file input, not the URL field.
-    imageUrl: product?.imageUrl?.startsWith('http') ? product.imageUrl : '',
+    category: product?.category ?? categories[0] ?? NEW_CATEGORY,
+    newCategory: '',
   });
   const [file, setFile] = useState<File | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
@@ -50,6 +52,13 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
     setRemoveImage(false);
   }
 
+  // Reusing existing categories keeps the catalog consistent ("Velas" vs "velas"); a new one can
+  // still be typed. The product's own category is included in case it was filtered out of the list.
+  const options = [...new Set([...categories, ...(product ? [product.category] : [])])].sort((a, b) =>
+    a.localeCompare(b, 'pt-BR'),
+  );
+  const creatingCategory = form.category === NEW_CATEGORY;
+
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -63,8 +72,7 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
         name: form.name,
         description: form.description,
         price: Number(form.price.replace(',', '.')),
-        category: form.category,
-        ...(form.imageUrl.trim() && !removeImage && !file && { imageUrl: form.imageUrl.trim() }),
+        category: creatingCategory ? form.newCategory : form.category,
       }, { file, remove: removeImage });
     } catch (err) {
       if (err instanceof ApiError) {
@@ -99,7 +107,14 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
           </label>
           <label className="field">
             <span>Categoria</span>
-            <input value={form.category} onChange={set('category')} required maxLength={60} />
+            <select value={form.category} onChange={set('category')} required>
+              {options.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              <option value={NEW_CATEGORY}>+ Nova categoria…</option>
+            </select>
           </label>
         </div>
         <div className="field">
@@ -137,17 +152,18 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
           </div>
           <small className="muted">PNG, JPEG ou WebP, até 2 MB.</small>
         </div>
-        <label className="field">
-          <span>ou URL da imagem</span>
-          <input
-            value={form.imageUrl}
-            onChange={set('imageUrl')}
-            type="url"
-            placeholder="https://..."
-            disabled={!!file}
-          />
-          {fieldError('imageUrl') && <small className="field-error">{fieldError('imageUrl')}</small>}
-        </label>
+        {creatingCategory && (
+          <label className="field">
+            <span>Nome da nova categoria</span>
+            <input
+              value={form.newCategory}
+              onChange={set('newCategory')}
+              required
+              maxLength={60}
+              autoFocus
+            />
+          </label>
+        )}
         {error && <div className="alert" role="alert">{error}</div>}
         <div className="modal-actions">
           <button type="button" className="btn btn-ghost" onClick={onClose}>

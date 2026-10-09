@@ -18,6 +18,7 @@ export function AuthPage() {
   const { theme, toggle } = useTheme();
   const [mode, setMode] = useState<Mode>('login');
   const [form, setForm] = useState({ name: '', email: '', password: '', companyName: '', inviteCode: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [busy, setBusy] = useState(false);
@@ -112,19 +113,31 @@ export function AuthPage() {
             <input type="email" value={form.email} onChange={set('email')} required autoComplete="email" />
             {fieldError('email') && <small className="field-error">{fieldError('email')}</small>}
           </label>
-          <label className="field">
-            <span>Senha</span>
-            <input
-              type="password"
-              value={form.password}
-              onChange={set('password')}
-              required
-              minLength={mode === 'login' ? 1 : 8}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            />
+          <div className="field">
+            <label htmlFor="auth-password">Senha</label>
+            <div className="password-field">
+              <input
+                id="auth-password"
+                type={showPassword ? 'text' : 'password'}
+                value={form.password}
+                onChange={set('password')}
+                required
+                minLength={mode === 'login' ? 1 : 8}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              />
+              <button
+                type="button"
+                className="btn btn-icon btn-ghost password-toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                aria-pressed={showPassword}
+              >
+                <Icon name={showPassword ? 'eyeOff' : 'eye'} />
+              </button>
+            </div>
             {mode !== 'login' && <small className="muted">Mínimo de 8 caracteres.</small>}
             {fieldError('password') && <small className="field-error">{fieldError('password')}</small>}
-          </label>
+          </div>
 
           {error && <div className="alert" role="alert">{error}</div>}
           <button className="btn btn-primary btn-block" type="submit" disabled={busy}>

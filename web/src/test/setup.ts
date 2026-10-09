@@ -16,3 +16,9 @@ HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
   this.removeAttribute('open');
   this.dispatchEvent(new Event('close'));
 };
+window.matchMedia ??= ((query: string) => ({
+  matches: false,
+  media: query,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+})) as unknown as typeof window.matchMedia;

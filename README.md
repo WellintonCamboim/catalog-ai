@@ -4,7 +4,7 @@ Mini SaaS **multi-tenant**: cada empresa cadastra o próprio catálogo de produt
 
 ![Dashboard do admin](docs/screenshots/dashboard-admin.png)
 
-| Chat com o assistente (dark mode) | Visão do usuário (somente leitura) | Mobile |
+| Chat com o assistente (dark mode, admin da TechNova) | Visão do usuário (somente leitura) | Mobile |
 |---|---|---|
 | ![Chat](docs/screenshots/chat.png) | ![Usuário](docs/screenshots/dashboard-user-dark.png) | ![Mobile](docs/screenshots/mobile.png) |
 
@@ -16,7 +16,7 @@ Mini SaaS **multi-tenant**: cada empresa cadastra o próprio catálogo de produt
 - **Agente de IA:** loop de tool calling com qualquer modelo do OpenRouter (Claude, OpenAI, modelos gratuitos...), com **streaming SSE**.
 - **Frontend:** React + TypeScript (Vite), responsivo, **dark mode**.
 - **Upload de imagem** de produto (PNG, JPEG, WebP, até 2 MB), com validação pelos bytes do arquivo.
-- **Extras:** Docker Compose, seed, **80 testes automatizados** (61 backend, 19 frontend).
+- **Extras:** Docker Compose, seed, **86 testes automatizados** (63 backend, 23 frontend).
 
 ## Rodando em ~5 minutos
 
@@ -93,8 +93,8 @@ As variáveis são validadas com zod na inicialização: se algo estiver errado,
 ### Testes e qualidade
 
 ```bash
-cd api && npm test && npm run typecheck && npm run lint    # 61 testes (Mongo em memória)
-cd web && npm test && npm run build && npm run lint        # 19 testes
+cd api && npm test && npm run typecheck && npm run lint    # 63 testes (Mongo em memória)
+cd web && npm test && npm run build && npm run lint        # 23 testes
 ```
 
 Os testes do backend usam `mongodb-memory-server` (baixa um binário do Mongo na primeira execução) e um LLM simulado: **nenhum teste chama um provedor de IA de verdade**, mesmo que exista uma chave no `.env`.
@@ -221,5 +221,7 @@ Docker Compose com `mongo` (healthcheck e volume), `api` (build multi-stage, só
 
 - O upload guarda a imagem como enviada, sem redimensionar ou otimizar, e o armazenamento em disco local não serve para várias instâncias da API.
 - Os testes automatizados não chamam um LLM real; a integração com o provedor foi validada manualmente (veja o roteiro acima). Modelos gratuitos do OpenRouter podem oscilar ou ter limite de requisições; o padrão é um modelo em *preview*, então pode ser preciso trocar `LLM_MODEL`.
+- Os modelos gratuitos do OpenRouter têm cota diária por conta (sem créditos, cerca de 50 requisições por dia); ao estourar, o chat responde "O provedor de IA atingiu o limite de uso" (`429`). Adicionar créditos ou usar outra chave resolve.
+- O modelo gratuito padrão passa por um provedor que rejeita alguns textos com `400` (por exemplo, frases do tipo "ignore as regras anteriores"); nesse caso o chat mostra a mensagem genérica de erro. Modelos pagos ou outros provedores do OpenRouter não têm essa restrição.
 - Não há testes ponta a ponta de navegador; os testes de frontend cobrem o streaming, as permissões e os fluxos principais com a API simulada.
 - Não há recuperação de senha nem verificação de e-mail.

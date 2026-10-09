@@ -201,4 +201,38 @@ describe('POST /chat', () => {
     expect(res.text).toContain('event: error');
     expect(res.text).not.toContain('boom');
   });
+
+  it('tells the user when the provider is rate limited (SSE and JSON)', async () => {
+    const llm: LlmClient = {
+      async streamTurn() {
+        throw Object.assign(new Error('429 Rate limit exceeded: free-models-per-day'), { status: 429 });
+      },
+    };
+    const app = createApp({ llm });
+
+    const sse = await request(app)
+      .post('/chat')
+      .set({ ...bearer(tenantA.token), Accept: 'text/event-stream' })
+      .send({ message: 'oi' });
+    expect(sse.text).toContain('limite de uso');
+    expect(sse.text).not.toContain('free-models-per-day');
+
+    const json = await request(app).post('/chat').set(bearer(tenantA.token)).send({ message: 'oi' });
+    expect(json.status).toBe(429);
+    expect(json.body.error.message).toContain('limite de uso');
+  });
+
+  it('does not leak provider errors from the JSON endpoint', async () => {
+    const llm: LlmClient = {
+      async streamTurn() {
+        throw new Error('secret upstream detail');
+      },
+    };
+    const res = await request(createApp({ llm }))
+      .post('/chat')
+      .set(bearer(tenantA.token))
+      .send({ message: 'oi' });
+    expect(res.status).toBe(502);
+    expect(JSON.stringify(res.body)).not.toContain('secret');
+  });
 });
