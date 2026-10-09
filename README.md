@@ -1,227 +1,232 @@
 # Catalog AI
 
-Mini SaaS **multi-tenant**: cada empresa cadastra o próprio catálogo de produtos e um **agente de IA** responde às perguntas dos clientes consultando o banco de verdade (tool calling), sempre restrito aos dados da empresa de quem está logado.
+🇺🇸 English · [🇧🇷 Português](README.pt-BR.md)
 
-![Dashboard do admin](docs/screenshots/dashboard-admin.png)
+A **multi-tenant** mini SaaS: each company manages its own product catalog, and an **AI agent** answers customer questions by querying the real database (tool calling), always restricted to the data of the logged-in user's company.
 
-| Chat com o assistente (dark mode, admin da TechNova) | Visão do usuário (somente leitura) | Mobile |
+![Admin dashboard](docs/screenshots/dashboard-admin.png)
+
+| Chat with the assistant (dark mode, TechNova admin) | User view (read-only) | Mobile |
 |---|---|---|
-| ![Chat](docs/screenshots/chat.png) | ![Usuário](docs/screenshots/dashboard-user-dark.png) | ![Mobile](docs/screenshots/mobile.png) |
+| ![Chat](docs/screenshots/chat.png) | ![User](docs/screenshots/dashboard-user-dark.png) | ![Mobile](docs/screenshots/mobile.png) |
 
-## O que tem aqui
+> The UI, the demo data and the agent's answers are in Brazilian Portuguese (the agent's system prompt asks for pt-BR). Internationalizing the UI is listed under production improvements.
 
-- **Backend:** Node.js + Express + MongoDB (Mongoose), TypeScript estrito.
-- **Auth:** JWT, roles `admin` e `user`, middleware de permissões.
-- **Multi-tenant:** isolamento por `company_id` imposto em duas camadas (repositório + plugin do Mongoose).
-- **Agente de IA:** loop de tool calling com qualquer modelo do OpenRouter (Claude, OpenAI, modelos gratuitos...), com **streaming SSE**.
-- **Frontend:** React + TypeScript (Vite), responsivo, **dark mode**.
-- **Upload de imagem** de produto (PNG, JPEG, WebP, até 2 MB), com validação pelos bytes do arquivo.
-- **Extras:** Docker Compose, seed, **86 testes automatizados** (63 backend, 23 frontend).
+## What's inside
 
-## Rodando em ~5 minutos
+- **Backend:** Node.js + Express + MongoDB (Mongoose), strict TypeScript.
+- **Auth:** JWT, `admin` and `user` roles, permission middleware.
+- **Multi-tenant:** isolation by `company_id`, enforced in two layers (repository + Mongoose plugin).
+- **AI agent:** tool-calling loop with any OpenRouter model (Claude, OpenAI, free models...), with **SSE streaming**.
+- **Frontend:** React + TypeScript (Vite), responsive, **dark mode**.
+- **Product image upload** (PNG, JPEG, WebP, up to 2 MB), validated by the file's actual bytes.
+- **Extras:** Docker Compose, seed script, **86 automated tests** (63 backend, 23 frontend).
 
-### Opção 1: Docker Compose (recomendada)
+## Running in ~5 minutes
 
-Requisitos: Docker com Compose v2.
+### Option 1: Docker Compose (recommended)
+
+Requirements: Docker with Compose v2.
 
 ```bash
 cp .env.example .env
 ```
 
-Edite o `.env` e configure a chave do OpenRouter:
+Edit `.env` and set your OpenRouter key:
 
 ```bash
 OPENROUTER_API_KEY=sk-or-...
-# Opcional: o padrão é um modelo gratuito em preview, que pode mudar ou sair do ar.
+# Optional: the default is a free preview model, which may change or go offline.
 # LLM_MODEL=anthropic/claude-haiku-5-5
 ```
 
-Depois:
+Then:
 
 ```bash
 docker compose up --build -d      # mongo + api + web
-docker compose run --rm seed      # 2 empresas, 25 produtos, 4 usuários
+docker compose run --rm seed      # 2 companies, 25 products, 4 users
 ```
 
-Abra **http://localhost:8080**.
+Open **http://localhost:8080**.
 
-Sem chave de IA tudo funciona, exceto o chat, que responde `503` com uma mensagem explicando o que falta.
+Without an AI key everything works except the chat, which answers `503` with a message explaining what is missing.
 
-Para parar: `docker compose down` (acrescente `-v` para apagar os dados).
+To stop: `docker compose down` (add `-v` to delete the data).
 
-### Opção 2: Local (sem Docker para a aplicação)
+### Option 2: Local (no Docker for the app)
 
-Requisitos: Node 22+ e um MongoDB acessível.
+Requirements: Node 22+ and a reachable MongoDB.
 
 ```bash
-docker run -d --name catalog-mongo -p 27017:27017 mongo:7   # ou use um Mongo local
+docker run -d --name catalog-mongo -p 27017:27017 mongo:7   # or use a local Mongo
 
-cp .env.example api/.env      # preencha a chave de IA
-cd api && npm install && npm run seed && npm run dev          # API em :3000
-cd web && npm install && npm run dev                          # web em :5173
+cp .env.example api/.env      # fill in the AI key
+cd api && npm install && npm run seed && npm run dev          # API on :3000
+cd web && npm install && npm run dev                          # web on :5173
 ```
 
-O Vite encaminha `/api/*` para `http://localhost:3000`, então não há CORS no desenvolvimento.
+Vite proxies `/api/*` to `http://localhost:3000`, so there is no CORS in development.
 
-### Usuários do seed
+### Seed users
 
-Senha de todos: `senha1234`
+Password for everyone: `senha1234`
 
-| Empresa | Perfil | E-mail | Código de convite |
+| Company | Role | E-mail | Invite code |
 |---|---|---|---|
-| TechNova Eletrônicos (eletrônicos) | admin | `admin@technova.example` | `technova-demo` |
+| TechNova Eletrônicos (electronics) | admin | `admin@technova.example` | `technova-demo` |
 | TechNova Eletrônicos | user | `user@technova.example` | |
-| Casa & Aroma (casa e decoração) | admin | `admin@casaaroma.example` | `casaaroma-demo` |
+| Casa & Aroma (home and decor) | admin | `admin@casaaroma.example` | `casaaroma-demo` |
 | Casa & Aroma | user | `user@casaaroma.example` | |
 
-**Roteiro sugerido para testar o isolamento:** entre como `user@casaaroma.example` e pergunte *"Tem vela de lavanda? E algum notebook?"*; depois entre como `user@technova.example` e faça a mesma pergunta. Cada um só enxerga o próprio catálogo.
+**Suggested script to check tenant isolation:** sign in as `user@casaaroma.example` and ask *"Tem vela de lavanda? E algum notebook?"* (Is there a lavender candle? And any laptop?); then sign in as `user@technova.example` and ask the same thing. Each one only sees their own catalog.
 
-### Variáveis de ambiente
+### Environment variables
 
-| Variável | Padrão | Descrição |
+| Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | (obrigatória, mín. 16 chars) | Segredo de assinatura dos tokens |
-| `JWT_EXPIRES_IN` | `1d` | Validade do token |
-| `OPENROUTER_API_KEY` | | Chave do OpenRouter (obrigatória para o chat) |
-| `LLM_MODEL` | `dots-studio/dots-3-note-preview:free` | Modelo do OpenRouter com suporte a tool calling (ex.: `anthropic/claude-haiku-5-5`) |
-| `UPLOAD_DIR` | `uploads` | Pasta das imagens enviadas (no Compose, volume `uploads-data` montado em `/app/uploads`) |
-| `WEB_PORT` | `8080` | Porta do frontend no Compose |
-| `MONGODB_URI`, `PORT`, `CORS_ORIGIN` | | Só para execução local; o Compose define sozinho |
+| `JWT_SECRET` | (required, min. 16 chars) | Token signing secret |
+| `JWT_EXPIRES_IN` | `1d` | Token lifetime |
+| `OPENROUTER_API_KEY` | | OpenRouter key (required for the chat) |
+| `LLM_MODEL` | `dots-studio/dots-3-note-preview:free` | OpenRouter model with tool-calling support (e.g. `anthropic/claude-haiku-5-5`) |
+| `UPLOAD_DIR` | `uploads` | Folder for uploaded images (in Compose, the `uploads-data` volume mounted at `/app/uploads`) |
+| `WEB_PORT` | `8080` | Frontend port in Compose |
+| `MONGODB_URI`, `PORT`, `CORS_ORIGIN` | | Local runs only; Compose sets them itself |
 
-As variáveis são validadas com zod na inicialização: se algo estiver errado, a API não sobe e diz o motivo.
+Variables are validated with zod at startup: if something is wrong, the API does not start and says why.
 
-### Testes e qualidade
+### Tests and quality
 
 ```bash
-cd api && npm test && npm run typecheck && npm run lint    # 63 testes (Mongo em memória)
-cd web && npm test && npm run build && npm run lint        # 23 testes
+cd api && npm test && npm run typecheck && npm run lint    # 63 tests (in-memory Mongo)
+cd web && npm test && npm run build && npm run lint        # 23 tests
 ```
 
-Os testes do backend usam `mongodb-memory-server` (baixa um binário do Mongo na primeira execução) e um LLM simulado: **nenhum teste chama um provedor de IA de verdade**, mesmo que exista uma chave no `.env`.
+Backend tests use `mongodb-memory-server` (it downloads a Mongo binary on first run) and a simulated LLM: **no test calls a real AI provider**, even if there is a key in `.env`.
 
 ## API
 
-Todas as rotas, exceto `/auth/register`, `/auth/login` e `/health`, exigem `Authorization: Bearer <jwt>`.
+All routes except `/auth/register`, `/auth/login` and `/health` require `Authorization: Bearer <jwt>`.
 
-| Método e rota | Quem | Descrição |
+| Method and route | Who | Description |
 |---|---|---|
-| `POST /auth/register` | público | Cria empresa nova (vira `admin`) com `companyName`, **ou** entra numa existente com `inviteCode` (vira `user`) |
-| `POST /auth/login` | público | Retorna `{ token, user }` |
-| `GET /auth/me` | autenticado | Usuário e empresa (o `inviteCode` só aparece para admin) |
-| `GET /products` | admin, user | Filtros `q`, `category`, `minPrice`, `maxPrice`, `page`, `limit` |
+| `POST /auth/register` | public | Creates a new company (becomes `admin`) with `companyName`, **or** joins an existing one with `inviteCode` (becomes `user`) |
+| `POST /auth/login` | public | Returns `{ token, user }` |
+| `GET /auth/me` | authenticated | User and company (`inviteCode` is only shown to admins) |
+| `GET /products` | admin, user | Filters `q`, `category`, `minPrice`, `maxPrice`, `page`, `limit` |
 | `GET /products/categories`, `GET /products/:id` | admin, user | |
-| `POST /products`, `PUT /products/:id`, `DELETE /products/:id` | **só admin** | `403` para `user` |
-| `PUT /products/:id/image`, `DELETE /products/:id/image` | **só admin** | Upload `multipart/form-data` (campo `image`) ou remoção da imagem |
-| `POST /chat` | admin, user | `{ message, history? }`. Com `Accept: text/event-stream` responde por SSE (`text`, `tool`, `done`, `error`); senão, JSON `{ reply, toolCalls }` |
+| `POST /products`, `PUT /products/:id`, `DELETE /products/:id` | **admin only** | `403` for `user` |
+| `PUT /products/:id/image`, `DELETE /products/:id/image` | **admin only** | `multipart/form-data` upload (field `image`) or image removal |
+| `POST /chat` | admin, user | `{ message, history? }`. With `Accept: text/event-stream` it answers over SSE (`text`, `tool`, `done`, `error`); otherwise JSON `{ reply, toolCalls }` |
 
-`GET /uploads/<companyId>/<arquivo>` serve as imagens enviadas (público, sem token; ver "Upload de imagens").
+`GET /uploads/<companyId>/<file>` serves the uploaded images (public, no token; see "Image upload").
 
-Erros seguem sempre o formato `{ "error": { "message", "details?" } }`.
+Errors always follow the shape `{ "error": { "message", "details?" } }`.
 
-## Decisões arquiteturais
+## Architecture decisions
 
-### Estrutura do backend
+### Backend structure
 
 ```
 api/src
-├── config/        env (zod) e conexão com o Mongo
-├── lib/           erros da aplicação, plugin de tenant
+├── config/        env (zod) and Mongo connection
+├── lib/           application errors, tenant plugin
 ├── middlewares/   authenticate, requireRole, validate, errorHandler
 ├── modules/
-│   ├── auth/      user model, token JWT, schemas, service, controller, routes
+│   ├── auth/      user model, JWT token, schemas, service, controller, routes
 │   ├── companies/ company model
 │   ├── products/  model, repository, schemas, service, controller, routes
-│   └── chat/      agente, tools, prompt, clientes de LLM, SSE
-├── seed/          dados de demonstração (idempotente)
-├── app.ts         monta o Express (sem abrir porta, para ser testável)
-└── server.ts      sobe a porta e trata o shutdown
+│   └── chat/      agent, tools, prompt, LLM clients, SSE
+├── seed/          demo data (idempotent)
+├── app.ts         builds the Express app (does not open a port, so it is testable)
+└── server.ts      opens the port and handles shutdown
 ```
 
-Camadas por módulo: **routes → controller → service → repository/model**. O controller só traduz HTTP, a regra de negócio fica no service e o acesso a dados no repository. `app.ts` é separado de `server.ts` e recebe o cliente de LLM por parâmetro (`createApp({ llm })`), o que permite testar rotas com `supertest` e um LLM simulado, sem rede.
+Layers per module: **routes → controller → service → repository/model**. The controller only translates HTTP, business rules live in the service and data access in the repository. `app.ts` is separate from `server.ts` and receives the LLM client as a parameter (`createApp({ llm })`), which allows testing routes with `supertest` and a simulated LLM, with no network.
 
-### Multi-tenant: o isolamento não depende de "lembrar de filtrar"
+### Multi-tenant: isolation does not depend on "remembering to filter"
 
-Escolhi **um banco compartilhado com `company_id` em cada documento** (e não banco por tenant): é o modelo mais simples de operar para muitos tenants pequenos, e o isolamento é reforçado em código:
+I chose **one shared database with `company_id` on every document** (rather than a database per tenant): it is the simplest model to operate with many small tenants, and isolation is enforced in code:
 
-1. **O tenant vem só do JWT.** O `company_id` é lido de `req.auth` (token verificado), nunca do body, da query ou de parâmetros. Os schemas de entrada são `strictObject`: enviar `company_id` no body retorna `400`.
-2. **Repositório "sem como esquecer".** Toda função recebe `companyId` como primeiro argumento obrigatório.
-3. **Rede de segurança no model** (`lib/tenantScope.ts`, plugin do Mongoose): qualquer `find`/`update`/`delete`/`count` sem um `company_id` concreto **lança erro**, inclusive filtros com operadores como `{ $ne: id }` (que casariam com outros tenants). `aggregate` precisa começar com `$match` por tenant. `company_id` é imutável em updates.
-4. **`404`, não `403`**, ao acessar o recurso de outra empresa: não revela que o id existe.
+1. **The tenant comes only from the JWT.** `company_id` is read from `req.auth` (verified token), never from the body, query or params. Input schemas are `strictObject`: sending `company_id` in the body returns `400`.
+2. **A repository with "no way to forget".** Every function takes `companyId` as a required first argument.
+3. **Safety net on the model** (`lib/tenantScope.ts`, a Mongoose plugin): any `find`/`update`/`delete`/`count` without a concrete `company_id` **throws**, including filters with operators such as `{ $ne: id }` (which would match other tenants). `aggregate` must start with a tenant `$match`. `company_id` is immutable on updates.
+4. **`404`, not `403`**, when accessing another company's resource: it does not reveal that the id exists.
 
-Os testes cobrem listagem, leitura, edição, exclusão, busca e categorias entre duas empresas, tanto no repositório quanto via HTTP e via chat.
+The tests cover listing, reading, editing, deleting, search and categories across two companies, at the repository level, over HTTP and through the chat.
 
-`User` e `Company` ficam de fora do plugin de propósito: o login busca por e-mail *antes* de saber o tenant.
+`User` and `Company` are deliberately left out of the plugin: login looks up by e-mail *before* the tenant is known.
 
-### Auth e permissões
+### Auth and permissions
 
-- JWT HS256 com `sub`, `companyId` e `role`; na verificação o algoritmo é **fixado** (há teste com token `alg: none`).
-- Senhas com bcrypt (custo 10), `select: false` no hash. O login responde igual para e-mail inexistente e senha errada e gasta o mesmo tempo nos dois casos (hash descartável), para não permitir enumerar contas.
-- `authenticate` + `requireRole('admin')` como middlewares compostos nas rotas. A permissão é checada no servidor; esconder botões no frontend é só UX.
-- **Como um `user` entra numa empresa?** O desafio não define. Escolhi um **código de convite** por empresa (visível só para o admin): aceitar um `companyId` no registro deixaria qualquer pessoa entrar na empresa de outra.
-- Rate limit: 30 requisições/15 min em register e login (por IP) e 20 mensagens/min no chat (**por usuário**, porque cada chamada custa tokens). `helmet`, CORS restrito e limite de 100 kb no body.
+- JWT HS256 with `sub`, `companyId` and `role`; the algorithm is **pinned** on verification (there is a test with an `alg: none` token).
+- Passwords use bcrypt (cost 10), with `select: false` on the hash. Login responds the same for an unknown e-mail and a wrong password and spends the same time in both cases (throwaway hash), so accounts cannot be enumerated.
+- `authenticate` + `requireRole('admin')` are composed as route middlewares. Permissions are checked on the server; hiding buttons in the frontend is only UX.
+- **How does a `user` join a company?** The challenge does not define it. I chose a per-company **invite code** (visible only to the admin): accepting a `companyId` at registration would let anyone join another company.
+- Rate limits: 30 requests/15 min on register and login (per IP) and 20 chat messages/min (**per user**, since each call costs tokens). `helmet`, restricted CORS and a 100 kb body limit.
 
-### Agente de IA
+### AI agent
 
-O `POST /chat` roda um **loop de tool calling real** (`chat.agent.ts`): o modelo decide se precisa de uma ferramenta, o servidor executa, devolve o resultado e o modelo redige a resposta, com limite de 5 iterações.
+`POST /chat` runs a **real tool-calling loop** (`chat.agent.ts`): the model decides whether it needs a tool, the server runs it, returns the result and the model writes the answer, capped at 5 iterations.
 
-- **Tools:** `search_products` (texto, categoria, faixa de preço, limite) e `list_categories`. Os schemas são zod e viram o JSON Schema enviado ao modelo, então há uma única fonte de verdade.
-- **O modelo nunca escolhe o tenant.** O `companyId` é injetado pelo servidor a partir do JWT; o schema da tool nem tem esse campo, e argumentos extras são descartados. Há teste simulando um modelo que tenta passar o `company_id` de outra empresa.
-- **Erros de tool voltam ao modelo** como `is_error` (ferramenta desconhecida, parâmetros inválidos), para ele se corrigir, em vez de derrubar a requisição.
-- **Prompt injection:** o system prompt manda tratar nomes e descrições de produtos como dados, não instruções. A defesa que realmente importa é estrutural: mesmo que o modelo seja enganado, as tools só alcançam o tenant do usuário.
-- **OpenRouter:** uma única API compatível com OpenAI dá acesso a Claude, GPT e modelos gratuitos, e o modelo se troca por `LLM_MODEL`, sem mudar código. Validei o fluxo completo (login → chat → tool → resposta em streaming) com chave real e o modelo padrão; outros modelos dependem de suporte a tool calling no OpenRouter.
-- **Interface `LlmClient`:** o agente depende só dela, com formato de mensagens neutro (`llm.ts`) e um adaptador para o formato OpenAI (`openai-format.ts`). Trocar de provedor (por exemplo, o SDK nativo da Anthropic) é escrever outra implementação, e os testes usam um LLM roteirizado e determinístico.
-- **Loop próprio em vez de LangChain:** para este escopo (duas tools e um loop curto, com tenant injetado e streaming SSE), usar o cliente OpenAI-compatível direto deixa cada passo (chamada do modelo → execução da tool → resultado devolvido) visível, testável e fácil de explicar, sem camadas de abstração. Como a lógica está atrás da interface `LlmClient`, migrar para LangChain/LangGraph é uma troca localizada; eu faria isso quando houver vários agentes, memória de conversa, RAG ou orquestração entre modelos.
-- **Streaming por SSE** em vez de WebSocket: o fluxo é unidirecional (servidor → cliente), SSE é HTTP puro (passa por proxies, sem handshake), e o cliente cancela abortando o `fetch`, o que também aborta a chamada ao LLM. O frontend usa `fetch` + stream porque `EventSource` não faz POST nem envia `Authorization`. WebSocket passaria a valer a pena com comunicação bidirecional (presença, transferência para atendente humano, múltiplos dispositivos na mesma conversa).
-- **Busca:** cada palavra da consulta precisa casar em nome, descrição ou categoria, em qualquer ordem, e o texto do usuário é escapado antes de virar regex. Esse ponto apareceu no teste real: "vela de lavanda" não achava "Vela Aromática Lavanda" na primeira versão.
+- **Tools:** `search_products` (text, category, price range, limit) and `list_categories`. Schemas are zod and become the JSON Schema sent to the model, so there is a single source of truth.
+- **The model never chooses the tenant.** `companyId` is injected by the server from the JWT; the tool schema does not even have that field, and extra arguments are dropped. A test simulates a model trying to pass another company's `company_id`.
+- **Tool errors go back to the model** as `is_error` (unknown tool, invalid parameters) so it can correct itself instead of failing the request.
+- **Prompt injection:** the system prompt tells the model to treat product names and descriptions as data, not instructions. The defense that really matters is structural: even if the model is fooled, the tools can only reach the user's tenant.
+- **OpenRouter:** a single OpenAI-compatible API gives access to Claude, GPT and free models, and the model is switched with `LLM_MODEL`, with no code change. I validated the full flow (login → chat → tool → streamed answer) with a real key and the default model; other models depend on tool-calling support at OpenRouter.
+- **`LlmClient` interface:** the agent depends only on it, using a neutral message format (`llm.ts`) and an adapter to the OpenAI format (`openai-format.ts`). Switching providers (for example, Anthropic's native SDK) means writing another implementation, and tests use a scripted, deterministic LLM.
+- **Own loop instead of LangChain:** for this scope (two tools and a short loop, with injected tenant and SSE streaming), using the OpenAI-compatible client directly keeps every step (model call → tool execution → result returned) visible, testable and easy to explain, with no abstraction layers. Since the logic sits behind the `LlmClient` interface, moving to LangChain/LangGraph is a localized swap; I would do it once there are multiple agents, conversation memory, RAG or orchestration across models.
+- **SSE streaming** instead of WebSocket: the flow is one-way (server → client), SSE is plain HTTP (passes through proxies, no handshake), and the client cancels by aborting the `fetch`, which also aborts the LLM call. The frontend uses `fetch` + stream because `EventSource` cannot POST or send `Authorization`. WebSocket becomes worthwhile with two-way communication (presence, handoff to a human agent, several devices in the same conversation).
+- **Search:** every word of the query must match in name, description or category, in any order, and the user's text is escaped before becoming a regex. This showed up in real testing: "vela de lavanda" did not find "Vela Aromática Lavanda" in the first version.
 
-### Upload de imagens
+### Image upload
 
-- **Armazenamento atrás de uma interface** (`ImageStorage`, `modules/uploads`): hoje grava em disco, em `uploads/<companyId>/<uuid>.<ext>`, com volume no Compose para sobreviver a recriações do container. Trocar por S3/GCS é escrever outra implementação; não usei S3 agora para manter o setup em 5 minutos, sem conta de nuvem.
-- **O tipo é decidido pelos bytes**, não pelo `Content-Type` nem pelo nome do arquivo (o cliente pode forjar os dois). Só PNG, JPEG e WebP; **SVG é recusado** porque pode carregar scripts. Limite de 2 MB (`413`) e um arquivo por requisição.
-- **Multi-tenant:** o produto é buscado pelo `companyId` do JWT antes de qualquer gravação (`404` para outra empresa), e o arquivo vai para a pasta da própria empresa. O nome é gerado no servidor (UUID), então não há path traversal, e `imageUrl` no body só aceita `http(s)`, o que impede apontar para o arquivo de outra empresa.
-- **Sem arquivos órfãos:** substituir, remover a imagem, trocar por uma URL externa ou excluir o produto apaga o arquivo antigo; se a gravação no banco falha, o arquivo novo é descartado.
-- **Leitura pública:** `<img>` não envia `Authorization`, então `/uploads` é público. A proteção é o nome aleatório (UUID, impossível de adivinhar) e a listagem de pastas desativada. Em produção: URLs assinadas com expiração ou CDN com acesso restrito.
+- **Storage behind an interface** (`ImageStorage`, `modules/uploads`): today it writes to disk at `uploads/<companyId>/<uuid>.<ext>`, with a Compose volume so files survive container recreation. Switching to S3/GCS means writing another implementation; I did not use S3 now to keep setup at 5 minutes, with no cloud account.
+- **The type is decided from the bytes**, not from `Content-Type` or the file name (the client can forge both). Only PNG, JPEG and WebP; **SVG is rejected** because it can carry scripts. 2 MB limit (`413`) and one file per request.
+- **Multi-tenant:** the product is looked up by the JWT's `companyId` before anything is written (`404` for another company), and the file goes into the company's own folder. The name is generated on the server (UUID), so there is no path traversal, and `imageUrl` in the body only accepts `http(s)`, which prevents pointing to another company's file.
+- **No orphan files:** replacing or removing the image, switching to an external URL or deleting the product deletes the old file; if the database write fails, the new file is discarded.
+- **Public reads:** `<img>` cannot send `Authorization`, so `/uploads` is public. Protection comes from the random name (UUID, unguessable) and disabled directory listing. In production: signed URLs with expiry, or a CDN with restricted access.
 
 ### Frontend
 
-- **Vite + React + TypeScript**: o desafio pede só React + TS, e o Vite é o toolchain recomendado para SPAs. Next.js traria SSR e API routes que o projeto não usa, já que há uma API separada.
-- **TanStack Query** para estado de servidor (cache, invalidação após mutações), contexto simples para a sessão, e CSS próprio com variáveis (tokens) em vez de uma biblioteca de UI: menos dependências e controle total do dark mode.
-- Dark mode respeita `prefers-color-scheme`, persiste a escolha e evita o "flash" de tema trocando o atributo antes do React montar.
-- Estados de carregamento, erro e vazio em todas as telas, `<dialog>` nativo nos modais (foco e ESC de graça), `prefers-reduced-motion`, layout responsivo.
-- Um `401` em qualquer chamada encerra a sessão.
+- **Vite + React + TypeScript**: the challenge only asks for React + TS, and Vite is the recommended toolchain for SPAs. Next.js would bring SSR and API routes the project does not use, since there is a separate API.
+- **TanStack Query** for server state (cache, invalidation after mutations), plain context for the session, and custom CSS with variables (tokens) instead of a UI library: fewer dependencies and full control of dark mode.
+- Dark mode respects `prefers-color-scheme`, persists the choice and avoids the theme "flash" by setting the attribute before React mounts.
+- Loading, error and empty states on every screen, native `<dialog>` for modals (focus and ESC for free), `prefers-reduced-motion`, responsive layout.
+- Any `401` response ends the session.
 
 ### Infra
 
-Docker Compose com `mongo` (healthcheck e volume), `api` (build multi-stage, só dependências de produção, usuário não-root) e `web` (nginx servindo o build e encaminhando `/api` para a API no mesmo domínio, com `proxy_buffering off` para o SSE não ser retido). O seed é um job à parte (`docker compose run --rm seed`) porque se recusa a rodar com `NODE_ENV=production`.
+Docker Compose with `mongo` (healthcheck and volume), `api` (multi-stage build, production dependencies only, non-root user) and `web` (nginx serving the build and forwarding `/api` to the API on the same domain, with `proxy_buffering off` so SSE is not held back). The seed is a separate job (`docker compose run --rm seed`) because it refuses to run with `NODE_ENV=production`.
 
-## O que eu faria diferente em produção
+## What I would do differently in production
 
-**Escala**
-- API stateless: escala horizontalmente atrás de um load balancer. Rate limit em Redis (hoje é em memória, por instância).
-- MongoDB em **replica set** (alta disponibilidade e transações; hoje o registro compensa manualmente a criação da empresa se a do usuário falhar). Chave de sharding começando por `company_id`.
-- Busca com índice de texto ou Atlas Search / OpenSearch (hoje é regex com `company_id` no índice, adequado para catálogos pequenos), e paginação por cursor.
-- Chat: fila ou limite de concorrência para o provedor de LLM, cota e orçamento por tenant, cache de consultas frequentes e *fallback* entre modelos.
-- Tempo real: se o chat evoluir para atendimento com humanos, WebSocket com adaptador de pub/sub (Redis) para várias instâncias da API.
-- Imagens: S3/GCS com URLs assinadas e CDN no lugar do disco local (que não escala para várias instâncias da API), redimensionamento/otimização (thumbnails, WebP) e varredura de arquivos.
+**Scale**
+- Stateless API: scales horizontally behind a load balancer. Rate limiting in Redis (today it is in memory, per instance).
+- MongoDB as a **replica set** (high availability and transactions; today registration manually compensates by undoing the company creation if the user creation fails). Shard key starting with `company_id`.
+- Search with a text index or Atlas Search / OpenSearch (today it is a regex with `company_id` in the index, fine for small catalogs), and cursor pagination.
+- Chat: queue or concurrency limit for the LLM provider, per-tenant quota and budget, caching of frequent queries and model *fallback*.
+- Internationalization: UI strings, API error codes (translated by the client) and the agent's answer language chosen per user.
+- Real time: if the chat evolves into support with humans, WebSocket with a pub/sub adapter (Redis) for several API instances.
+- Images: S3/GCS with signed URLs and a CDN instead of local disk (which does not scale across API instances), resizing/optimization (thumbnails, WebP) and file scanning.
 
-**Segurança**
-- Tokens de acesso curtos + **refresh token** rotativo com revogação, em cookie `httpOnly` + proteção CSRF. Hoje o JWT fica no `localStorage` (simples, mas exposto a XSS) e dura 1 dia.
-- Segredos em um secrets manager, rotação de chaves, e-mail verificado, política de senhas e MFA para admins.
-- Convites por e-mail com expiração e uso único, no lugar do código fixo por empresa. Auditoria de ações administrativas.
-- CSP e demais headers de segurança no nginx, varredura de dependências e imagens no CI.
-- Para clientes enterprise, opção de banco dedicado por tenant. Revisão de privacidade do que é enviado ao provedor de LLM (contrato, retenção, dados pessoais).
+**Security**
+- Short-lived access tokens + rotating **refresh token** with revocation, in an `httpOnly` cookie + CSRF protection. Today the JWT lives in `localStorage` (simple, but exposed to XSS) and lasts 1 day.
+- Secrets in a secrets manager, key rotation, verified e-mail, password policy and MFA for admins.
+- E-mail invitations with expiry and single use, instead of a fixed code per company. Audit log of admin actions.
+- CSP and other security headers in nginx, dependency and image scanning in CI.
+- For enterprise customers, an option of a dedicated database per tenant. Privacy review of what is sent to the LLM provider (contract, retention, personal data).
 
-**Monitoramento e operação**
-- Logs estruturados (ex.: pino) com `requestId`, `userId` e `companyId`; métricas (latência, taxa de erro, saturação do Mongo) e tracing com OpenTelemetry; Sentry para erros do frontend e do backend.
-- Observabilidade do agente: traces por conversa (prompt, tools chamadas, latência, tokens e custo por tenant) com Langfuse ou LangSmith, mais um conjunto de avaliações (perguntas com respostas esperadas) rodando no CI para pegar regressões ao trocar de modelo ou de prompt.
-- Probes de liveness e readiness, alertas (taxa de erro, p95, custo do LLM), backups e teste de restauração do banco.
-- CI com lint, testes e build, mais testes ponta a ponta (Playwright) do fluxo login → CRUD → chat.
+**Monitoring and operations**
+- Structured logs (e.g. pino) with `requestId`, `userId` and `companyId`; metrics (latency, error rate, Mongo saturation) and tracing with OpenTelemetry; Sentry for frontend and backend errors.
+- Agent observability: per-conversation traces (prompt, tools called, latency, tokens and cost per tenant) with Langfuse or LangSmith, plus an evaluation set (questions with expected answers) running in CI to catch regressions when changing model or prompt.
+- Liveness and readiness probes, alerts (error rate, p95, LLM cost), backups and database restore drills.
+- CI with lint, tests and build, plus end-to-end tests (Playwright) of the login → CRUD → chat flow.
 
-## Limitações conhecidas
+## Known limitations
 
-- O upload guarda a imagem como enviada, sem redimensionar ou otimizar, e o armazenamento em disco local não serve para várias instâncias da API.
-- Os testes automatizados não chamam um LLM real; a integração com o provedor foi validada manualmente (veja o roteiro acima). Modelos gratuitos do OpenRouter podem oscilar ou ter limite de requisições; o padrão é um modelo em *preview*, então pode ser preciso trocar `LLM_MODEL`.
-- Os modelos gratuitos do OpenRouter têm cota diária por conta (sem créditos, cerca de 50 requisições por dia); ao estourar, o chat responde "O provedor de IA atingiu o limite de uso" (`429`). Adicionar créditos ou usar outra chave resolve.
-- O modelo gratuito padrão passa por um provedor que rejeita alguns textos com `400` (por exemplo, frases do tipo "ignore as regras anteriores"); nesse caso o chat mostra a mensagem genérica de erro. Modelos pagos ou outros provedores do OpenRouter não têm essa restrição.
-- Não há testes ponta a ponta de navegador; os testes de frontend cobrem o streaming, as permissões e os fluxos principais com a API simulada.
-- Não há recuperação de senha nem verificação de e-mail.
+- Upload stores the image as sent, with no resizing or optimization, and local disk storage does not work across several API instances.
+- Automated tests do not call a real LLM; the provider integration was validated manually (see the script above). Free OpenRouter models may fluctuate or be rate limited; the default is a *preview* model, so you may need to change `LLM_MODEL`.
+- Free OpenRouter models have a daily quota per account (without credits, around 50 requests per day); when exceeded, the chat answers "O provedor de IA atingiu o limite de uso" (the AI provider reached its usage limit, `429`). Adding credits or using another key fixes it.
+- The default free model goes through a provider that rejects some texts with `400` (for example, phrases like "ignore as regras anteriores", i.e. "ignore the previous rules"); in that case the chat shows the generic error message. Paid models or other OpenRouter providers do not have this restriction.
+- There are no browser end-to-end tests; the frontend tests cover streaming, permissions and the main flows with a simulated API.
+- There is no password recovery or e-mail verification.
