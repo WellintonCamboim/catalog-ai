@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { productRouter } from './modules/products/product.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 export function createApp() {
@@ -17,6 +18,7 @@ export function createApp() {
   });
 
   app.use('/auth', authRouter);
+  app.use('/products', productRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
