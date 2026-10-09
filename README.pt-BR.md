@@ -160,6 +160,8 @@ Os testes do backend usam `mongodb-memory-server` (baixa um binário do Mongo na
 
 ## API
 
+📘 **Referência completa com exemplos de requisição e resposta, erros, streaming SSE e comandos curl: [`docs/API.pt-BR.md`](docs/API.pt-BR.md)** ([English](docs/API.md)). Especificação OpenAPI 3 para Swagger UI, Postman ou Insomnia: [`docs/openapi.yaml`](docs/openapi.yaml). Resumo abaixo.
+
 Todas as rotas, exceto `/auth/register`, `/auth/login` e `/health`, exigem `Authorization: Bearer <jwt>`.
 
 | Método e rota | Quem | Descrição |

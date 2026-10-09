@@ -162,6 +162,8 @@ Backend tests use `mongodb-memory-server` (it downloads a Mongo binary on first 
 
 ## API
 
+📘 **Full reference with request/response examples, errors, SSE streaming and curl snippets: [`docs/API.md`](docs/API.md)** ([Português](docs/API.pt-BR.md)). OpenAPI 3 spec for Swagger UI, Postman or Insomnia: [`docs/openapi.yaml`](docs/openapi.yaml). Summary below.
+
 All routes except `/auth/register`, `/auth/login` and `/health` require `Authorization: Bearer <jwt>`.
 
 | Method and route | Who | Description |

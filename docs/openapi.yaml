@@ -1,0 +1,632 @@
+openapi: 3.0.3
+info:
+  title: Catalog AI API
+  version: 1.0.0
+  description: |
+    Multi-tenant product catalog with an AI agent (tool calling) that answers questions using the
+    real catalog of the caller's company.
+
+    **Authentication:** sign in with `POST /auth/login` (or register) and send the returned token as
+    `Authorization: Bearer <token>`. In Swagger UI use the **Authorize** button.
+
+    **Multi-tenancy:** the company always comes from the token. A company never sees another
+    company's data, and accessing another company's resource returns `404`.
+
+    Human-readable guide: `docs/API.md` (English) and `docs/API.pt-BR.md` (Portuguese).
+servers:
+  - url: http://localhost:3000
+    description: API directly (Docker Compose or local dev)
+  - url: http://localhost:8080/api
+    description: Through the web container (nginx)
+tags:
+  - name: Health
+  - name: Auth
+  - name: Products
+  - name: Product images
+  - name: Chat
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness check
+      security: []
+      responses:
+        '200':
+          description: The API is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Create an account
+      description: |
+        Send **exactly one** of `companyName` or `inviteCode`.
+        - `companyName` creates a new company and the user becomes its `admin`.
+        - `inviteCode` joins the company that owns the code and the user becomes a `user`.
+
+        Rate limited: 30 requests per 15 minutes per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+            examples:
+              newCompany:
+                summary: New company (becomes admin)
+                value: { name: Ana, email: ana@example.com, password: senha-forte-1, companyName: Minha Loja }
+              invite:
+                summary: Join with an invite code (becomes user)
+                value: { name: Beto, email: beto@example.com, password: senha-forte-1, inviteCode: 1d821937eb9e }
+      responses:
+        '201':
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: Unknown invite code
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: Código de convite inválido } }
+        '409':
+          description: E-mail already registered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: E-mail já cadastrado } }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in
+      description: |
+        Returns the same answer (and takes the same time) for an unknown e-mail and a wrong password.
+        Rate limited: 30 requests per 15 minutes per IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: { email: admin@technova.example, password: senha1234 }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: Credenciais inválidas } }
+        '429': { $ref: '#/components/responses/RateLimited' }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user and company
+      description: '`company.inviteCode` is only present for admins.'
+      responses:
+        '200':
+          description: The authenticated user and their company
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /products:
+    get:
+      tags: [Products]
+      summary: List products
+      description: Paginated, newest first. Only products of the caller's company are returned.
+      parameters:
+        - name: q
+          in: query
+          description: Text search. Every word (3+ characters) must appear in the name, description or category, in any order.
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: category
+          in: query
+          description: Exact category name (case-insensitive)
+          schema: { type: string, minLength: 1, maxLength: 60 }
+        - name: minPrice
+          in: query
+          schema: { type: number, minimum: 0 }
+        - name: maxPrice
+          in: query
+          description: Must not be lower than `minPrice`
+          schema: { type: number, minimum: 0 }
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: A page of products
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductList' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Products]
+      summary: Create a product (admin only)
+      description: Unknown fields, including `company_id`, are rejected with `400`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductInput' }
+            example: { name: Caneca, description: Caneca de cerâmica, price: 29.9, category: Cozinha }
+      responses:
+        '201':
+          description: Product created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /products/categories:
+    get:
+      tags: [Products]
+      summary: List the company's categories
+      responses:
+        '200':
+          description: Distinct categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { type: string }
+                    example: [Acessórios, Áudio, Computadores]
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /products/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    get:
+      tags: [Products]
+      summary: Get a product
+      responses:
+        '200':
+          description: The product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/ProductNotFound' }
+    put:
+      tags: [Products]
+      summary: Update a product (admin only)
+      description: |
+        Partial update: send only the fields to change (at least one). Setting `imageUrl` to an
+        external URL deletes a previously uploaded file.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductUpdate' }
+            example: { price: 34.9 }
+      responses:
+        '200':
+          description: The updated product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/ProductNotFound' }
+    delete:
+      tags: [Products]
+      summary: Delete a product (admin only)
+      description: Also deletes its uploaded image, if any.
+      responses:
+        '204': { description: Deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/ProductNotFound' }
+
+  /products/{id}/image:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    put:
+      tags: [Product images]
+      summary: Upload or replace the product image (admin only)
+      description: |
+        PNG, JPEG or WebP, up to 2 MB, one file in the `image` field. The type is detected from the
+        file's bytes (not its name or Content-Type); SVG is rejected. The previous uploaded image is deleted.
+        The returned `imageUrl` is a relative path: prefix it with the API base URL to display it.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: The updated product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '400':
+          description: Missing `image` field, or more than one file
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: 'Envie o arquivo no campo "image"' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/ProductNotFound' }
+        '413':
+          description: File larger than 2 MB
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: Imagem muito grande (máximo 2 MB) } }
+        '415':
+          description: Not a PNG, JPEG or WebP image
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: 'Formato não suportado: use PNG, JPEG ou WebP' } }
+    delete:
+      tags: [Product images]
+      summary: Remove the product image (admin only)
+      description: 'Removes the image (uploaded file or external URL) and returns the product with `imageUrl: null`.'
+      responses:
+        '200':
+          description: The updated product
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Product' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/ProductNotFound' }
+
+  /uploads/{companyId}/{file}:
+    get:
+      tags: [Product images]
+      summary: Serve an uploaded image
+      description: |
+        Public (no token): `<img>` tags cannot send an Authorization header. Protection comes from
+        unguessable UUID file names; directory listing is disabled.
+      security: []
+      parameters:
+        - name: companyId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: file
+          in: path
+          required: true
+          description: '`<uuid>.png`, `<uuid>.jpg` or `<uuid>.webp`'
+          schema: { type: string }
+      responses:
+        '200':
+          description: The image
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/jpeg: { schema: { type: string, format: binary } }
+            image/webp: { schema: { type: string, format: binary } }
+        '404': { description: File not found }
+
+  /chat:
+    post:
+      tags: [Chat]
+      summary: Ask the AI agent
+      description: |
+        The agent calls its tools (`search_products`, `list_categories`) against the **caller's
+        company** catalog, with the company injected by the server from the token, and answers in
+        Brazilian Portuguese. It refuses topics unrelated to the company's products.
+
+        The response format depends on the `Accept` header:
+        - default: JSON `{ reply, toolCalls }`, returned when the agent finishes;
+        - `Accept: text/event-stream`: Server-Sent Events with the events `tool`, `text`, `done` and `error`.
+
+        The server keeps no conversation state: send the previous turns in `history`.
+        Rate limited: 20 requests per minute per user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChatRequest' }
+            example:
+              message: Tem notebook?
+              history: []
+      responses:
+        '200':
+          description: The answer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChatReply' }
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  A stream of events separated by blank lines. Each event is `event: <name>` plus
+                  `data: <json>`:
+                  - `tool`: `{"name":"search_products"}`, the agent is calling a tool
+                  - `text`: `{"text":"..."}`, a chunk of the answer (concatenate in order)
+                  - `done`: `{}`, the answer is complete
+                  - `error`: `{"message":"..."}`, the agent failed; the stream ends
+              example: |
+                event: tool
+                data: {"name":"search_products"}
+
+                event: text
+                data: {"text":"Sim, temos "}
+
+                event: text
+                data: {"text":"notebooks!"}
+
+                event: done
+                data: {}
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Rate limit, or the AI provider's quota was reached
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: O provedor de IA atingiu o limite de uso. Tente novamente em alguns minutos. } }
+            text/html:
+              schema: { type: string }
+              example: Too many requests, please try again later.
+        '502':
+          description: The AI provider failed (JSON mode only; in SSE mode it arrives as an `error` event)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: Não foi possível obter a resposta do agente } }
+        '503':
+          description: AI not configured (no `OPENROUTER_API_KEY`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: { message: 'Agente de IA indisponível: OPENROUTER_API_KEY não configurada' } }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HS256 JWT returned by `/auth/register` and `/auth/login`, valid for 1 day.
+
+  parameters:
+    ProductId:
+      name: id
+      in: path
+      required: true
+      description: Product id. A malformed id also returns 404.
+      schema: { type: string, example: 6ac960bd38959668bd8b7dab }
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            error:
+              message: Dados inválidos
+              details:
+                price: ['Too small: expected number to be >=0']
+    Unauthorized:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { message: Não autenticado } }
+    Forbidden:
+      description: The caller is not an admin
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { message: Apenas administradores podem fazer isso } }
+    ProductNotFound:
+      description: The product does not exist, or belongs to another company
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: { message: Produto não encontrado } }
+    RateLimited:
+      description: |
+        Too many requests. The body is plain text (`Too many requests, please try again later.`) and
+        the response carries `RateLimit-*` and `Retry-After` headers.
+      headers:
+        Retry-After:
+          description: Seconds until the limit resets
+          schema: { type: integer }
+      content:
+        text/html:
+          schema: { type: string }
+          example: Too many requests, please try again later.
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message]
+          properties:
+            message: { type: string }
+            details:
+              type: object
+              description: 'Only on validation errors (400), with the reasons per field. Empty for unknown extra fields.'
+              additionalProperties:
+                type: array
+                items: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [name, email, password]
+      description: Provide exactly one of `companyName` or `inviteCode`.
+      properties:
+        name: { type: string, minLength: 2, maxLength: 120 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 8, maxLength: 72, format: password }
+        companyName:
+          type: string
+          minLength: 2
+          maxLength: 120
+          description: Creates a new company; the user becomes admin
+        inviteCode:
+          type: string
+          description: Joins an existing company; the user becomes a regular user
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token: { type: string, description: 'JWT, valid for 1 day' }
+        user: { $ref: '#/components/schemas/User' }
+
+    Session:
+      type: object
+      required: [user, company]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        company: { $ref: '#/components/schemas/Company' }
+
+    User:
+      type: object
+      required: [id, name, email, role, companyId]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [admin, user] }
+        companyId: { type: string }
+
+    Company:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        inviteCode:
+          type: string
+          description: Only present for admins
+
+    ProductInput:
+      type: object
+      additionalProperties: false
+      required: [name, description, price, category]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        price: { type: number, minimum: 0, maximum: 1000000, description: Price in BRL }
+        category: { type: string, minLength: 1, maxLength: 60 }
+        imageUrl:
+          type: string
+          format: uri
+          maxLength: 500
+          description: External http(s) URL. To upload a file use `PUT /products/{id}/image`.
+
+    ProductUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Any subset of the product fields (at least one).
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: string, minLength: 1, maxLength: 2000 }
+        price: { type: number, minimum: 0, maximum: 1000000 }
+        category: { type: string, minLength: 1, maxLength: 60 }
+        imageUrl: { type: string, format: uri, maxLength: 500 }
+
+    Product:
+      type: object
+      required: [id, name, description, price, category, imageUrl, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        price: { type: number, description: Price in BRL }
+        category: { type: string }
+        imageUrl:
+          type: string
+          nullable: true
+          description: External http(s) URL, a relative `/uploads/...` path for an uploaded image, or null
+          example: /uploads/6ac960bd38959668bd8b7da8/c931e00e-828d-490e-8906-c51d08fa19e1.png
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProductList:
+      type: object
+      required: [items, total, page, limit, totalPages]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Product' }
+        total: { type: integer, description: Total matching products }
+        page: { type: integer }
+        limit: { type: integer }
+        totalPages: { type: integer }
+
+    ChatRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 2000 }
+        history:
+          type: array
+          maxItems: 20
+          default: []
+          description: Previous turns the agent should remember
+          items:
+            type: object
+            additionalProperties: false
+            required: [role, content]
+            properties:
+              role: { type: string, enum: [user, assistant] }
+              content: { type: string, minLength: 1, maxLength: 4000 }
+
+    ChatReply:
+      type: object
+      required: [reply, toolCalls]
+      properties:
+        reply: { type: string, description: The agent's answer (Markdown) }
+        toolCalls:
+          type: array
+          description: Names of the tools the agent called, in order
+          items: { type: string, example: search_products }
