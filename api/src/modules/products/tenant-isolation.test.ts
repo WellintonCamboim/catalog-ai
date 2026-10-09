@@ -60,6 +60,16 @@ describe('repository isolation', () => {
     expect((await repo.list(companyA, { q: '.*' })).items).toHaveLength(0);
   });
 
+  it('matches multi-word queries across fields in any order', async () => {
+    await repo.create(companyA, { ...sample('Vela Aromática Lavanda'), category: 'Velas' });
+    await repo.create(companyA, sample('Vela de Baunilha'));
+
+    const names = async (q: string) => (await repo.list(companyA, { q })).items.map((p) => p.name);
+    expect(await names('vela de lavanda')).toEqual(['Vela Aromática Lavanda']);
+    expect(await names('lavanda vela')).toEqual(['Vela Aromática Lavanda']);
+    expect(await names('velas')).toEqual(['Vela Aromática Lavanda']);
+  });
+
   it('returns null/false for malformed ids instead of throwing', async () => {
     expect(await repo.findById(companyA, 'not-an-id')).toBeNull();
     expect(await repo.update(companyA, 'not-an-id', { name: 'x' })).toBeNull();

@@ -8,9 +8,16 @@ const schema = z.object({
   JWT_SECRET: z.string().min(16, 'JWT_SECRET deve ter ao menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('1d'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  LLM_PROVIDER: z.enum(['anthropic', 'openrouter']).default('anthropic'),
+  LLM_MODEL: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  LLM_MODEL: z.string().default('claude-haiku-5-5'),
+  OPENROUTER_API_KEY: z.string().optional(),
 });
+
+const DEFAULT_MODELS = {
+  anthropic: 'claude-haiku-5-5',
+  openrouter: 'dots-studio/dots-3-note-preview:free',
+} as const;
 
 const parsed = schema.safeParse(process.env);
 
@@ -19,4 +26,7 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+export const env = {
+  ...parsed.data,
+  LLM_MODEL: parsed.data.LLM_MODEL ?? DEFAULT_MODELS[parsed.data.LLM_PROVIDER],
+};

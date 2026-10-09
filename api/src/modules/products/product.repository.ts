@@ -25,8 +25,13 @@ export const productRepository = {
 
     if (category) query.category = new RegExp(`^${escapeRegex(category)}$`, 'i');
     if (q) {
-      const rx = new RegExp(escapeRegex(q), 'i');
-      query.$or = [{ name: rx }, { description: rx }];
+      // Every word must match somewhere (name, description or category), in any order.
+      const words = q.split(/\s+/).filter((w) => w.length >= 3);
+      const terms = words.length > 0 ? words : [q];
+      query.$and = terms.map((term) => {
+        const rx = new RegExp(escapeRegex(term), 'i');
+        return { $or: [{ name: rx }, { description: rx }, { category: rx }] };
+      });
     }
     if (minPrice !== undefined || maxPrice !== undefined) {
       query.price = {

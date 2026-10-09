@@ -21,7 +21,9 @@ const searchProductsSchema = z.object({
     .min(1)
     .max(100)
     .optional()
-    .describe('Texto a buscar no nome ou na descrição'),
+    .describe(
+      'Palavras-chave curtas para buscar no nome, descrição ou categoria (ex.: "vela lavanda")',
+    ),
   category: z.string().trim().min(1).max(60).optional().describe('Nome exato da categoria'),
   min_price: z.number().min(0).optional().describe('Preço mínimo em reais'),
   max_price: z.number().min(0).optional().describe('Preço máximo em reais'),

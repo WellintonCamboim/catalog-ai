@@ -3,13 +3,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
 import { authRouter } from './modules/auth/auth.routes.js';
-import { anthropicLlm } from './modules/chat/anthropic.llm.js';
 import { createChatRouter } from './modules/chat/chat.routes.js';
+import { createLlmFromEnv } from './modules/chat/llm.factory.js';
 import type { LlmClient } from './modules/chat/llm.js';
 import { productRouter } from './modules/products/product.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
-export function createApp({ llm = anthropicLlm }: { llm?: LlmClient } = {}) {
+export function createApp({ llm = createLlmFromEnv() }: { llm?: LlmClient } = {}) {
   const app = express();
 
   app.use(helmet());
