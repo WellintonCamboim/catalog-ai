@@ -3,5 +3,6 @@ dist
 .env
 *.log
 coverage
-uploads
+# uploaded product images (runtime data). Anchored so it does not match src/modules/uploads
+/api/uploads/
 .DS_Store

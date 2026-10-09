@@ -20,6 +20,57 @@ Mini SaaS **multi-tenant**: cada empresa cadastra o próprio catálogo de produt
 - **Upload de imagem** de produto (PNG, JPEG, WebP, até 2 MB), com validação pelos bytes do arquivo.
 - **Extras:** Docker Compose, seed, **86 testes automatizados** (63 backend, 23 frontend).
 
+## Tecnologias
+
+| Camada | Tecnologias |
+|---|---|
+| **Backend** | [Node.js](https://nodejs.org) 22 · [Express](https://expressjs.com) 5 · [TypeScript](https://www.typescriptlang.org) 6 (strict) · [MongoDB](https://www.mongodb.com) 7 com [Mongoose](https://mongoosejs.com) 9 |
+| **Validação e segurança** | [Zod](https://zod.dev) 4 (env, bodies das requisições, schemas das tools) · JWT (`jsonwebtoken`) · `bcryptjs` · `helmet` · `cors` · `express-rate-limit` |
+| **IA** | [OpenRouter](https://openrouter.ai) (uma API compatível com OpenAI para Claude, GPT e modelos gratuitos) pelo SDK `openai` · **tool calling** · streaming por **Server-Sent Events** |
+| **Uploads** | `multer` (memória) + detecção do tipo pelos bytes (magic bytes), arquivos em disco atrás da interface `ImageStorage` |
+| **Frontend** | [React](https://react.dev) 19 · TypeScript · [Vite](https://vite.dev) 8 · React Router 7 · [TanStack Query](https://tanstack.com/query) 5 · `react-markdown` nas respostas do chat · CSS próprio com design tokens (temas claro e escuro) |
+| **Infra** | Docker e Docker Compose · Dockerfiles multi-stage · nginx 1.27 (serve a SPA e faz proxy de `/api`) |
+| **Qualidade** | [Vitest](https://vitest.dev) 5 · Supertest · `mongodb-memory-server` · Testing Library · ESLint (`typescript-eslint`) · oxlint · Prettier |
+
+## Configurando a IA (OpenRouter)
+
+O agente do chat conversa com um LLM pelo [OpenRouter](https://openrouter.ai), uma única API compatível com OpenAI que roteia para vários provedores (Claude, GPT, Gemini, modelos abertos, modelos gratuitos...). Você precisa de uma chave só, e troca o modelo sem mexer no código.
+
+**1. Crie uma conta.** Acesse [openrouter.ai](https://openrouter.ai) e entre (Google, GitHub ou e-mail).
+
+**2. Crie uma chave de API.**
+1. Abra [openrouter.ai/keys](https://openrouter.ai/keys) (menu *Keys*).
+2. Clique em **Create API Key**, dê um nome (ex.: `catalog-ai`) e, se quiser, um limite de crédito.
+3. **Copie a chave na hora** (`sk-or-v1-...`): ela só aparece uma vez. Trate como senha e nunca a commite (o `.env` está no `.gitignore`).
+
+**3. Escolha um modelo.** Abra [openrouter.ai/models](https://openrouter.ai/models) e **filtre por *Supported parameters → tools***: o agente precisa de **tool calling**, e um modelo sem isso não consegue consultar o catálogo. Use o slug do modelo (o id mostrado na página dele, com o botão de copiar), por exemplo:
+
+| Slug do modelo | Custo | Observações |
+|---|---|---|
+| `dots-studio/dots-3-note-preview:free` | grátis | **Padrão** quando `LLM_MODEL` está vazio. É um modelo em preview: pode mudar, sair do ar ou ter limite de uso |
+| `openai/gpt-4.1-mini` | pago, barato | Bom custo-benefício para este caso |
+| `anthropic/claude-haiku-5.5` | pago, barato | Modelo Claude rápido |
+| `openai/gpt-4.1` | pago | Mais forte e mais caro |
+
+Modelos gratuitos terminam em `:free` (filtre por *Prices → Free* ou abra [esta lista](https://openrouter.ai/models?supported_parameters=tools&max_price=0)). Preços e disponibilidade mudam, então confira sempre a página do modelo.
+
+**4. Limites do plano gratuito.** Sem créditos, os modelos gratuitos são limitados (cerca de 50 requisições por dia e poucas por minuto por conta, no momento em que escrevi). Quando a cota acaba, o chat responde *"O provedor de IA atingiu o limite de uso"* (`429`). Para liberar, adicione créditos em [openrouter.ai/settings/credits](https://openrouter.ai/settings/credits) (um valor pequeno basta e também aumenta bastante a cota dos modelos gratuitos) ou troque para um modelo pago.
+
+**5. Configure o projeto.** No `.env` (Docker) ou em `api/.env` (local):
+
+```bash
+OPENROUTER_API_KEY=sk-or-v1-...
+LLM_MODEL=openai/gpt-4.1-mini     # opcional: deixe vazio para usar o padrão gratuito
+```
+
+Se alterar o `.env` com a stack já rodando, recrie a API para ela ler os valores novos: `docker compose up -d api`.
+
+**6. Confira se a chave funciona** (deve retornar `200`):
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://openrouter.ai/api/v1/key -H "Authorization: Bearer $OPENROUTER_API_KEY"
+```
+
 ## Rodando em ~5 minutos
 
 ### Opção 1: Docker Compose (recomendada)
@@ -30,12 +81,12 @@ Requisitos: Docker com Compose v2.
 cp .env.example .env
 ```
 
-Edite o `.env` e configure a chave do OpenRouter:
+Edite o `.env` e configure a chave do OpenRouter (veja [Configurando a IA](#configurando-a-ia-openrouter) para criar uma, leva um minuto):
 
 ```bash
 OPENROUTER_API_KEY=sk-or-...
 # Opcional: o padrão é um modelo gratuito em preview, que pode mudar ou sair do ar.
-# LLM_MODEL=anthropic/claude-haiku-5-5
+# LLM_MODEL=openai/gpt-4.1-mini
 ```
 
 Depois:
@@ -58,10 +109,16 @@ Requisitos: Node 22+ e um MongoDB acessível.
 ```bash
 docker run -d --name catalog-mongo -p 27017:27017 mongo:7   # ou use um Mongo local
 
-cp .env.example api/.env      # preencha a chave de IA
-cd api && npm install && npm run seed && npm run dev          # API em :3000
-cd web && npm install && npm run dev                          # web em :5173
+cp .env.example api/.env      # preencha OPENROUTER_API_KEY
+
+# terminal 1: API em :3000
+cd api && npm install && npm run seed && npm run dev
+
+# terminal 2: web em :5173
+cd web && npm install && npm run dev
 ```
+
+Abra **http://localhost:5173**.
 
 O Vite encaminha `/api/*` para `http://localhost:3000`, então não há CORS no desenvolvimento.
 
@@ -82,10 +139,10 @@ Senha de todos: `senha1234`
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `JWT_SECRET` | (obrigatória, mín. 16 chars) | Segredo de assinatura dos tokens |
+| `JWT_SECRET` | (obrigatória, mín. 16 chars) | Segredo de assinatura dos tokens. O `.env.example` traz um valor de exemplo: troque-o fora de uma demo local |
 | `JWT_EXPIRES_IN` | `1d` | Validade do token |
 | `OPENROUTER_API_KEY` | | Chave do OpenRouter (obrigatória para o chat) |
-| `LLM_MODEL` | `dots-studio/dots-3-note-preview:free` | Modelo do OpenRouter com suporte a tool calling (ex.: `anthropic/claude-haiku-5-5`) |
+| `LLM_MODEL` | `dots-studio/dots-3-note-preview:free` | Modelo do OpenRouter com suporte a tool calling (ex.: `openai/gpt-4.1-mini` ou `anthropic/claude-haiku-5.5`) |
 | `UPLOAD_DIR` | `uploads` | Pasta das imagens enviadas (no Compose, volume `uploads-data` montado em `/app/uploads`) |
 | `WEB_PORT` | `8080` | Porta do frontend no Compose |
 | `MONGODB_URI`, `PORT`, `CORS_ORIGIN` | | Só para execução local; o Compose define sozinho |
@@ -95,8 +152,8 @@ As variáveis são validadas com zod na inicialização: se algo estiver errado,
 ### Testes e qualidade
 
 ```bash
-cd api && npm test && npm run typecheck && npm run lint    # 63 testes (Mongo em memória)
-cd web && npm test && npm run build && npm run lint        # 23 testes
+(cd api && npm install && npm test && npm run typecheck && npm run lint)   # 63 testes (Mongo em memória)
+(cd web && npm install && npm test && npm run build && npm run lint)       # 23 testes
 ```
 
 Os testes do backend usam `mongodb-memory-server` (baixa um binário do Mongo na primeira execução) e um LLM simulado: **nenhum teste chama um provedor de IA de verdade**, mesmo que exista uma chave no `.env`.
@@ -119,6 +176,25 @@ Todas as rotas, exceto `/auth/register`, `/auth/login` e `/health`, exigem `Auth
 `GET /uploads/<companyId>/<arquivo>` serve as imagens enviadas (público, sem token; ver "Upload de imagens").
 
 Erros seguem sempre o formato `{ "error": { "message", "details?" } }`.
+
+## Usando o app
+
+1. **Entre** em http://localhost:8080 com um [usuário do seed](#usuários-do-seed). As abas *Entrar / Criar empresa / Convite* também permitem cadastro: *Criar empresa* cria uma empresa nova e o primeiro `admin`; *Convite* entra numa empresa existente como `user` com o código de convite (que o admin vê no dashboard).
+2. **Produtos** (dashboard): navegue, busque por texto e filtre por categoria. Como `admin` você cria, edita e exclui produtos (nome, descrição, preço, categoria escolhida numa lista ou nova, e upload opcional de imagem de até 2 MB). Como `user` o catálogo é somente leitura.
+3. **Assistente** (chat): pergunte em linguagem natural ("Tem algo até R$ 100?", "Quais categorias existem?"). O agente consulta o catálogo da sua empresa por meio de tools e responde em streaming. Ele só conhece os produtos da empresa logada.
+4. **Tema:** o botão de lua/sol alterna o dark mode, e a escolha fica salva.
+
+## Solução de problemas
+
+| Sintoma | Causa e solução |
+|---|---|
+| O chat diz que a IA está indisponível (`503`) | `OPENROUTER_API_KEY` está vazia. Preencha no `.env` e rode `docker compose up -d api` |
+| O chat diz *"O provedor de IA atingiu o limite de uso"* (`429`) | A cota gratuita acabou. Espere o reinício diário, adicione créditos ou use um `LLM_MODEL` pago |
+| O chat mostra um erro genérico na hora | O modelo pode não suportar tool calling, ou o provedor rejeitou a requisição. Veja `docker compose logs api` e tente outro `LLM_MODEL` |
+| `port is already allocated` | A porta `3000` (API) ou `8080` (web) está em uso. Pare o outro processo; para a web, defina `WEB_PORT` no `.env`. A porta da API é fixa em `3000` |
+| Erro de `JWT_SECRET` ao subir o Compose | Você não criou o `.env`: rode `cp .env.example .env` |
+| Login diz credenciais inválidas | Rode o seed (`docker compose run --rm seed`) e use os [usuários do seed](#usuários-do-seed) (senha `senha1234`) |
+| Recomeçar com dados limpos | `docker compose down -v` (apaga também as imagens enviadas), depois suba e rode o seed de novo |
 
 ## Decisões arquiteturais
 
