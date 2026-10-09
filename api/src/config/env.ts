@@ -28,5 +28,5 @@ if (!parsed.success) {
 
 export const env = {
   ...parsed.data,
-  LLM_MODEL: parsed.data.LLM_MODEL ?? DEFAULT_MODELS[parsed.data.LLM_PROVIDER],
+  LLM_MODEL: parsed.data.LLM_MODEL || DEFAULT_MODELS[parsed.data.LLM_PROVIDER],
 };

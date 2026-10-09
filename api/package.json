@@ -10,7 +10,8 @@
     "seed": "tsx src/seed/index.ts",
     "test": "vitest run",
     "lint": "eslint src",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:prod": "node dist/seed/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
