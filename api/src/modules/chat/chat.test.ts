@@ -1,19 +1,18 @@
-import type { ContentBlock, MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../app.js';
 import { clearTestDb, startTestDb, stopTestDb } from '../../test/db.js';
-import type { LlmClient, LlmRequest, LlmTurn } from './llm.js';
+import type { LlmClient, LlmRequest, LlmTurn, MessageParam } from './llm.js';
 
 type Step = (req: LlmRequest) => LlmTurn;
 
 const text = (t: string): LlmTurn => ({
-  content: [{ type: 'text', text: t, citations: null } as ContentBlock],
+  content: [{ type: 'text', text: t }],
   stopReason: 'end_turn',
 });
 
 const toolUse = (name: string, input: unknown, id = 'tu_1'): LlmTurn => ({
-  content: [{ type: 'tool_use', id, name, input } as ContentBlock],
+  content: [{ type: 'tool_use', id, name, input }],
   stopReason: 'tool_use',
 });
 

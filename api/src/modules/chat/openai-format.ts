@@ -1,13 +1,12 @@
-import type { ContentBlock, MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages';
 import type {
   ChatCompletionChunk,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from 'openai/resources/chat/completions';
-import type { LlmTurn } from './llm.js';
+import type { ContentBlock, LlmTurn, MessageParam, Tool } from './llm.js';
 
-// The agent speaks Anthropic's message format internally; these helpers translate it to and from
-// the OpenAI chat-completions format used by OpenRouter.
+// The agent speaks the neutral format from llm.ts (text / tool_use / tool_result blocks); these
+// helpers translate it to and from the OpenAI chat-completions format used by OpenRouter.
 
 export function toOpenAiTools(tools: Tool[]): ChatCompletionTool[] {
   return tools.map((t) => ({
@@ -15,7 +14,7 @@ export function toOpenAiTools(tools: Tool[]): ChatCompletionTool[] {
     function: {
       name: t.name,
       description: t.description,
-      parameters: t.input_schema as Record<string, unknown>,
+      parameters: t.input_schema,
     },
   }));
 }
@@ -103,14 +102,14 @@ export async function collectStream(
   }
 
   const content: ContentBlock[] = [];
-  if (text) content.push({ type: 'text', text, citations: null });
+  if (text) content.push({ type: 'text', text });
   for (const [index, c] of [...calls.entries()].sort((a, b) => a[0] - b[0])) {
     content.push({
       type: 'tool_use',
       id: c.id || `call_${index}`,
       name: c.name,
       input: parseArguments(c.args),
-    } as ContentBlock);
+    });
   }
 
   const usedTools = calls.size > 0 || finishReason === 'tool_calls';

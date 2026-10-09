@@ -1,10 +1,4 @@
-import type {
-  ContentBlock,
-  ContentBlockParam,
-  MessageParam,
-  ToolUseBlock,
-} from '@anthropic-ai/sdk/resources/messages';
-import type { LlmClient } from './llm.js';
+import type { LlmClient, MessageParam, ToolResultBlock, ToolUseBlock } from './llm.js';
 import { buildSystemPrompt } from './chat.prompt.js';
 import { executeTool, toolDefinitions, type ToolContext } from './chat.tools.js';
 
@@ -22,17 +16,6 @@ export interface AgentRun {
   history: { role: 'user' | 'assistant'; content: string }[];
   emit: (event: AgentEvent) => void;
   signal?: AbortSignal;
-}
-
-// Only text and tool_use blocks go back to the model; other block types are not needed for the loop.
-function toAssistantParam(content: ContentBlock[]): ContentBlockParam[] {
-  return content.flatMap((block): ContentBlockParam[] => {
-    if (block.type === 'text') return [{ type: 'text', text: block.text }];
-    if (block.type === 'tool_use') {
-      return [{ type: 'tool_use', id: block.id, name: block.name, input: block.input }];
-    }
-    return [];
-  });
 }
 
 export async function runAgent({
@@ -62,8 +45,8 @@ export async function runAgent({
       return;
     }
 
-    messages.push({ role: 'assistant', content: toAssistantParam(turn.content) });
-    const results = [];
+    messages.push({ role: 'assistant', content: turn.content });
+    const results: ToolResultBlock[] = [];
     for (const use of toolUses) {
       emit({ type: 'tool', name: use.name });
       results.push(await executeTool(ctx, use.id, use.name, use.input));

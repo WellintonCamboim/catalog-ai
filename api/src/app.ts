@@ -4,12 +4,12 @@ import helmet from 'helmet';
 import { env } from './config/env.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { createChatRouter } from './modules/chat/chat.routes.js';
-import { createLlmFromEnv } from './modules/chat/llm.factory.js';
+import { openRouterLlm } from './modules/chat/openrouter.llm.js';
 import type { LlmClient } from './modules/chat/llm.js';
 import { productRouter } from './modules/products/product.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
-export function createApp({ llm = createLlmFromEnv() }: { llm?: LlmClient } = {}) {
+export function createApp({ llm = openRouterLlm }: { llm?: LlmClient } = {}) {
   const app = express();
 
   app.use(helmet());

@@ -1,4 +1,4 @@
-import type { Tool, ToolResultBlockParam } from '@anthropic-ai/sdk/resources/messages';
+import type { Tool, ToolResultBlock } from './llm.js';
 import { z } from 'zod';
 import { productRepository } from '../products/product.repository.js';
 
@@ -75,7 +75,7 @@ export const toolDefinitions: Tool[] = tools.map((t) => {
   return {
     name: t.name,
     description: t.description,
-    input_schema: inputSchema as Tool['input_schema'],
+    input_schema: inputSchema,
   };
 });
 
@@ -84,8 +84,8 @@ export async function executeTool(
   toolUseId: string,
   name: string,
   rawInput: unknown,
-): Promise<ToolResultBlockParam> {
-  const fail = (message: string): ToolResultBlockParam => ({
+): Promise<ToolResultBlock> {
+  const fail = (message: string): ToolResultBlock => ({
     type: 'tool_result',
     tool_use_id: toolUseId,
     content: message,

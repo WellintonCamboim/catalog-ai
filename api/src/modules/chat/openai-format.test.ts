@@ -1,6 +1,6 @@
-import type { MessageParam } from '@anthropic-ai/sdk/resources/messages';
 import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import { describe, expect, it } from 'vitest';
+import type { MessageParam } from './llm.js';
 import { collectStream, toOpenAiMessages } from './openai-format.js';
 
 async function* chunks(...deltas: Partial<ChatCompletionChunk['choices'][0]>[]) {
@@ -56,7 +56,7 @@ describe('collectStream', () => {
       (t) => seen.push(t),
     );
     expect(seen).toEqual(['Olá', ' mundo']);
-    expect(turn.content).toEqual([{ type: 'text', text: 'Olá mundo', citations: null }]);
+    expect(turn.content).toEqual([{ type: 'text', text: 'Olá mundo' }]);
     expect(turn.stopReason).toBe('stop');
   });
 

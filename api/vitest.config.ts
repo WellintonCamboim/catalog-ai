@@ -7,8 +7,6 @@ export default defineConfig({
       MONGODB_URI: 'mongodb://localhost:27017/catalog_ai_test',
       JWT_SECRET: 'segredo-de-teste-com-mais-de-16-chars',
       // Blank keys keep a developer's local .env from leaking real LLM calls into the tests.
-      LLM_PROVIDER: 'anthropic',
-      ANTHROPIC_API_KEY: '',
       OPENROUTER_API_KEY: '',
     },
   },
