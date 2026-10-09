@@ -50,7 +50,7 @@ const searchProducts: AgentTool<typeof searchProductsSchema> = {
         description: p.description,
         price_brl: p.price,
         category: p.category,
-        image_url: p.imageUrl ?? null,
+        image_url: p.imageUrl?.startsWith('http') ? p.imageUrl : null,
       })),
     };
   },

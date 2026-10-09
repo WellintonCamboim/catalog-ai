@@ -7,6 +7,7 @@ const schema = z.object({
   MONGODB_URI: z.string().min(1),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET deve ter ao menos 16 caracteres'),
   JWT_EXPIRES_IN: z.string().default('1d'),
+  UPLOAD_DIR: z.string().default('uploads'),
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   LLM_MODEL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().optional(),

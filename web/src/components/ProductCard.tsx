@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Product } from '../api/types';
 import { formatPrice } from '../lib/format';
+import { resolveImageUrl } from '../lib/image';
 import { Icon } from './ui';
 
 interface Props {
@@ -18,7 +19,7 @@ export function ProductCard({ product, canEdit, onEdit, onDelete }: Props) {
     <article className="card product">
       <div className="product-media">
         {showImage ? (
-          <img src={product.imageUrl!} alt={product.name} loading="lazy" onError={() => setImageFailed(true)} />
+          <img src={resolveImageUrl(product.imageUrl)} alt={product.name} loading="lazy" onError={() => setImageFailed(true)} />
         ) : (
           <div className="product-fallback" aria-hidden="true">
             {product.name.charAt(0).toUpperCase()}

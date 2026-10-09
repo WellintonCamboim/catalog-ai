@@ -15,7 +15,8 @@ Mini SaaS **multi-tenant**: cada empresa cadastra o próprio catálogo de produt
 - **Multi-tenant:** isolamento por `company_id` imposto em duas camadas (repositório + plugin do Mongoose).
 - **Agente de IA:** loop de tool calling com qualquer modelo do OpenRouter (Claude, OpenAI, modelos gratuitos...), com **streaming SSE**.
 - **Frontend:** React + TypeScript (Vite), responsivo, **dark mode**.
-- **Extras:** Docker Compose, seed, **63 testes automatizados** (47 backend, 16 frontend).
+- **Upload de imagem** de produto (PNG, JPEG, WebP, até 2 MB), com validação pelos bytes do arquivo.
+- **Extras:** Docker Compose, seed, **80 testes automatizados** (61 backend, 19 frontend).
 
 ## Rodando em ~5 minutos
 
@@ -83,6 +84,7 @@ Senha de todos: `senha1234`
 | `JWT_EXPIRES_IN` | `1d` | Validade do token |
 | `OPENROUTER_API_KEY` | | Chave do OpenRouter (obrigatória para o chat) |
 | `LLM_MODEL` | `dots-studio/dots-3-note-preview:free` | Modelo do OpenRouter com suporte a tool calling (ex.: `anthropic/claude-haiku-5-5`) |
+| `UPLOAD_DIR` | `uploads` | Pasta das imagens enviadas (no Compose, volume `uploads-data` montado em `/app/uploads`) |
 | `WEB_PORT` | `8080` | Porta do frontend no Compose |
 | `MONGODB_URI`, `PORT`, `CORS_ORIGIN` | | Só para execução local; o Compose define sozinho |
 
@@ -91,8 +93,8 @@ As variáveis são validadas com zod na inicialização: se algo estiver errado,
 ### Testes e qualidade
 
 ```bash
-cd api && npm test && npm run typecheck && npm run lint    # 47 testes (Mongo em memória)
-cd web && npm test && npm run build && npm run lint        # 16 testes
+cd api && npm test && npm run typecheck && npm run lint    # 61 testes (Mongo em memória)
+cd web && npm test && npm run build && npm run lint        # 19 testes
 ```
 
 Os testes do backend usam `mongodb-memory-server` (baixa um binário do Mongo na primeira execução) e um LLM simulado: **nenhum teste chama um provedor de IA de verdade**, mesmo que exista uma chave no `.env`.
@@ -109,7 +111,10 @@ Todas as rotas, exceto `/auth/register`, `/auth/login` e `/health`, exigem `Auth
 | `GET /products` | admin, user | Filtros `q`, `category`, `minPrice`, `maxPrice`, `page`, `limit` |
 | `GET /products/categories`, `GET /products/:id` | admin, user | |
 | `POST /products`, `PUT /products/:id`, `DELETE /products/:id` | **só admin** | `403` para `user` |
+| `PUT /products/:id/image`, `DELETE /products/:id/image` | **só admin** | Upload `multipart/form-data` (campo `image`) ou remoção da imagem |
 | `POST /chat` | admin, user | `{ message, history? }`. Com `Accept: text/event-stream` responde por SSE (`text`, `tool`, `done`, `error`); senão, JSON `{ reply, toolCalls }` |
+
+`GET /uploads/<companyId>/<arquivo>` serve as imagens enviadas (público, sem token; ver "Upload de imagens").
 
 Erros seguem sempre o formato `{ "error": { "message", "details?" } }`.
 
@@ -169,6 +174,14 @@ O `POST /chat` roda um **loop de tool calling real** (`chat.agent.ts`): o modelo
 - **Streaming por SSE** em vez de WebSocket: o fluxo é unidirecional (servidor → cliente), SSE é HTTP puro (passa por proxies, sem handshake), e o cliente cancela abortando o `fetch`, o que também aborta a chamada ao LLM. O frontend usa `fetch` + stream porque `EventSource` não faz POST nem envia `Authorization`. WebSocket passaria a valer a pena com comunicação bidirecional (presença, transferência para atendente humano, múltiplos dispositivos na mesma conversa).
 - **Busca:** cada palavra da consulta precisa casar em nome, descrição ou categoria, em qualquer ordem, e o texto do usuário é escapado antes de virar regex. Esse ponto apareceu no teste real: "vela de lavanda" não achava "Vela Aromática Lavanda" na primeira versão.
 
+### Upload de imagens
+
+- **Armazenamento atrás de uma interface** (`ImageStorage`, `modules/uploads`): hoje grava em disco, em `uploads/<companyId>/<uuid>.<ext>`, com volume no Compose para sobreviver a recriações do container. Trocar por S3/GCS é escrever outra implementação; não usei S3 agora para manter o setup em 5 minutos, sem conta de nuvem.
+- **O tipo é decidido pelos bytes**, não pelo `Content-Type` nem pelo nome do arquivo (o cliente pode forjar os dois). Só PNG, JPEG e WebP; **SVG é recusado** porque pode carregar scripts. Limite de 2 MB (`413`) e um arquivo por requisição.
+- **Multi-tenant:** o produto é buscado pelo `companyId` do JWT antes de qualquer gravação (`404` para outra empresa), e o arquivo vai para a pasta da própria empresa. O nome é gerado no servidor (UUID), então não há path traversal, e `imageUrl` no body só aceita `http(s)`, o que impede apontar para o arquivo de outra empresa.
+- **Sem arquivos órfãos:** substituir, remover a imagem, trocar por uma URL externa ou excluir o produto apaga o arquivo antigo; se a gravação no banco falha, o arquivo novo é descartado.
+- **Leitura pública:** `<img>` não envia `Authorization`, então `/uploads` é público. A proteção é o nome aleatório (UUID, impossível de adivinhar) e a listagem de pastas desativada. Em produção: URLs assinadas com expiração ou CDN com acesso restrito.
+
 ### Frontend
 
 - **Vite + React + TypeScript**: o desafio pede só React + TS, e o Vite é o toolchain recomendado para SPAs. Next.js traria SSR e API routes que o projeto não usa, já que há uma API separada.
@@ -189,7 +202,7 @@ Docker Compose com `mongo` (healthcheck e volume), `api` (build multi-stage, só
 - Busca com índice de texto ou Atlas Search / OpenSearch (hoje é regex com `company_id` no índice, adequado para catálogos pequenos), e paginação por cursor.
 - Chat: fila ou limite de concorrência para o provedor de LLM, cota e orçamento por tenant, cache de consultas frequentes e *fallback* entre modelos.
 - Tempo real: se o chat evoluir para atendimento com humanos, WebSocket com adaptador de pub/sub (Redis) para várias instâncias da API.
-- Imagens: upload para armazenamento de objetos (S3/GCS) com CDN. Hoje o produto guarda só a URL.
+- Imagens: S3/GCS com URLs assinadas e CDN no lugar do disco local (que não escala para várias instâncias da API), redimensionamento/otimização (thumbnails, WebP) e varredura de arquivos.
 
 **Segurança**
 - Tokens de acesso curtos + **refresh token** rotativo com revogação, em cookie `httpOnly` + proteção CSRF. Hoje o JWT fica no `localStorage` (simples, mas exposto a XSS) e dura 1 dia.
@@ -206,7 +219,7 @@ Docker Compose com `mongo` (healthcheck e volume), `api` (build multi-stage, só
 
 ## Limitações conhecidas
 
-- **Upload de imagem** (bônus) não foi implementado: o produto aceita uma URL de imagem `http(s)`.
+- O upload guarda a imagem como enviada, sem redimensionar ou otimizar, e o armazenamento em disco local não serve para várias instâncias da API.
 - Os testes automatizados não chamam um LLM real; a integração com o provedor foi validada manualmente (veja o roteiro acima). Modelos gratuitos do OpenRouter podem oscilar ou ter limite de requisições; o padrão é um modelo em *preview*, então pode ser preciso trocar `LLM_MODEL`.
 - Não há testes ponta a ponta de navegador; os testes de frontend cobrem o streaming, as permissões e os fluxos principais com a API simulada.
 - Não há recuperação de senha nem verificação de e-mail.

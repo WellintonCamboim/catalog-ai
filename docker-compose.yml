@@ -24,6 +24,8 @@ services:
       CORS_ORIGIN: http://localhost:${WEB_PORT:-8080}
       LLM_MODEL: ${LLM_MODEL:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - uploads-data:/app/uploads
     ports:
       - "3000:3000"
     healthcheck:
@@ -56,3 +58,4 @@ services:
 
 volumes:
   mongo-data:
+  uploads-data:

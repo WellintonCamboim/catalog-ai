@@ -30,6 +30,14 @@ export async function update(req: Request, res: Response) {
   res.json(await productService.update(tenant(req), idParam(req), req.body as UpdateProductInput));
 }
 
+export async function setImage(req: Request, res: Response) {
+  res.json(await productService.setImage(tenant(req), idParam(req), req.file));
+}
+
+export async function removeImage(req: Request, res: Response) {
+  res.json(await productService.removeImage(tenant(req), idParam(req)));
+}
+
 export async function remove(req: Request, res: Response) {
   await productService.remove(tenant(req), idParam(req));
   res.status(204).end();

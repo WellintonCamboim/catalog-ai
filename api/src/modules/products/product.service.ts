@@ -1,4 +1,6 @@
-import { notFound } from '../../lib/errors.js';
+import { AppError, badRequest, notFound } from '../../lib/errors.js';
+import { imageStorage, isLocalImage } from '../uploads/imageStorage.js';
+import { sniffImage } from '../uploads/imageType.js';
 import type {
   CreateProductInput,
   ListProductsInput,
@@ -21,6 +23,11 @@ export function toProductDto(p: ProductRecord) {
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };
+}
+
+// Best effort: a leftover file is harmless, a failed request because of it is not.
+async function discardImage(companyId: string, imageUrl: string) {
+  await imageStorage.delete(companyId, imageUrl).catch(() => undefined);
 }
 
 export const productService = {
@@ -46,13 +53,53 @@ export const productService = {
   },
 
   async update(companyId: string, id: string, input: UpdateProductInput) {
+    const before = input.imageUrl ? await productRepository.findById(companyId, id) : null;
     const product = await productRepository.update(companyId, id, input);
     if (!product) throw notFound('Produto não encontrado');
+    // A new external URL replaces an uploaded file, which would otherwise be left orphaned.
+    if (isLocalImage(before?.imageUrl)) await discardImage(companyId, before.imageUrl);
     return toProductDto(product);
   },
 
   async remove(companyId: string, id: string) {
-    if (!(await productRepository.remove(companyId, id))) throw notFound('Produto não encontrado');
+    const product = await productRepository.findById(companyId, id);
+    if (!product || !(await productRepository.remove(companyId, id))) {
+      throw notFound('Produto não encontrado');
+    }
+    if (isLocalImage(product.imageUrl)) await discardImage(companyId, product.imageUrl);
+  },
+
+  async setImage(companyId: string, id: string, file: Express.Multer.File | undefined) {
+    const product = await productRepository.findById(companyId, id);
+    if (!product) throw notFound('Produto não encontrado');
+    if (!file) throw badRequest('Envie o arquivo no campo "image"');
+
+    const ext = sniffImage(file.buffer);
+    if (!ext) throw new AppError(415, 'Formato não suportado: use PNG, JPEG ou WebP');
+
+    const imageUrl = await imageStorage.save(companyId, file.buffer, ext);
+    let updated;
+    try {
+      updated = await productRepository.update(companyId, id, { imageUrl });
+    } catch (err) {
+      await discardImage(companyId, imageUrl);
+      throw err;
+    }
+    if (!updated) {
+      await discardImage(companyId, imageUrl);
+      throw notFound('Produto não encontrado');
+    }
+    if (isLocalImage(product.imageUrl)) await discardImage(companyId, product.imageUrl);
+    return toProductDto(updated);
+  },
+
+  async removeImage(companyId: string, id: string) {
+    const product = await productRepository.findById(companyId, id);
+    if (!product) throw notFound('Produto não encontrado');
+    const updated = await productRepository.clearImage(companyId, id);
+    if (!updated) throw notFound('Produto não encontrado');
+    if (isLocalImage(product.imageUrl)) await discardImage(companyId, product.imageUrl);
+    return toProductDto(updated);
   },
 
   categories: (companyId: string) => productRepository.listCategories(companyId),

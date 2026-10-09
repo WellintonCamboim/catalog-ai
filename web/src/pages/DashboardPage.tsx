@@ -5,7 +5,7 @@ import type { Product, ProductInput } from '../api/types';
 import { useAuth } from '../auth/useAuth';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ProductCard } from '../components/ProductCard';
-import { ProductModal } from '../components/ProductModal';
+import { ProductModal, type ImageChange } from '../components/ProductModal';
 import { Icon, Spinner } from '../components/ui';
 
 type Dialog = { type: 'create' } | { type: 'edit'; product: Product } | { type: 'delete'; product: Product } | null;
@@ -43,8 +43,21 @@ export function DashboardPage() {
   };
 
   const save = useMutation({
-    mutationFn: (input: ProductInput) =>
-      dialog?.type === 'edit' ? productsApi.update(dialog.product.id, input) : productsApi.create(input),
+    mutationFn: async ({ input, image }: { input: ProductInput; image: ImageChange }) => {
+      const editing = dialog?.type === 'edit' ? dialog.product : null;
+      const saved = editing
+        ? await productsApi.update(editing.id, input)
+        : await productsApi.create(input);
+      try {
+        if (image.file) await productsApi.uploadImage(saved.id, image.file);
+        else if (image.remove && editing?.imageUrl) await productsApi.removeImage(saved.id);
+      } catch (err) {
+        // The product itself is saved: switch to edit mode so a retry doesn't create a duplicate.
+        refresh();
+        setDialog({ type: 'edit', product: saved });
+        throw err;
+      }
+    },
     onSuccess: () => {
       refresh();
       setDialog(null);
@@ -186,7 +199,7 @@ export function DashboardPage() {
         <ProductModal
           product={dialog.type === 'edit' ? dialog.product : undefined}
           onClose={() => setDialog(null)}
-          onSubmit={(input) => save.mutateAsync(input).then(() => undefined)}
+          onSubmit={(input, image) => save.mutateAsync({ input, image }).then(() => undefined)}
         />
       )}
       {dialog?.type === 'delete' && (

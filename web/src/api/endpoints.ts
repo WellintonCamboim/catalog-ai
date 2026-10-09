@@ -32,4 +32,10 @@ export const productsApi = {
   update: (id: string, input: Partial<ProductInput>) =>
     request<Product>(`/products/${id}`, { method: 'PUT', body: input }),
   remove: (id: string) => request<void>(`/products/${id}`, { method: 'DELETE' }),
+  uploadImage: (id: string, file: File) => {
+    const body = new FormData();
+    body.append('image', file);
+    return request<Product>(`/products/${id}/image`, { method: 'PUT', body });
+  },
+  removeImage: (id: string) => request<Product>(`/products/${id}/image`, { method: 'DELETE' }),
 };

@@ -69,6 +69,15 @@ export const productRepository = {
     }).lean();
   },
 
+  async clearImage(companyId: string, id: string) {
+    if (!isValidObjectId(id)) return null;
+    return Product.findOneAndUpdate(
+      { _id: id, company_id: companyId },
+      { $unset: { imageUrl: 1 } },
+      { returnDocument: 'after' },
+    ).lean();
+  },
+
   async remove(companyId: string, id: string) {
     if (!isValidObjectId(id)) return false;
     const result = await Product.deleteOne({ _id: id, company_id: companyId });

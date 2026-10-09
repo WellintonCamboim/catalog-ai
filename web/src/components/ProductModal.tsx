@@ -1,11 +1,17 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { ApiError } from '../api/client';
 import type { Product, ProductInput } from '../api/types';
+import { IMAGE_TYPES, resolveImageUrl, validateImageFile } from '../lib/image';
 import { Modal } from './ui';
+
+export interface ImageChange {
+  file: File | null;
+  remove: boolean;
+}
 
 interface Props {
   product?: Product;
-  onSubmit: (input: ProductInput) => Promise<void>;
+  onSubmit: (input: ProductInput, image: ImageChange) => Promise<void>;
   onClose: () => void;
 }
 
@@ -15,11 +21,34 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
     description: product?.description ?? '',
     price: product ? String(product.price) : '',
     category: product?.category ?? '',
-    imageUrl: product?.imageUrl ?? '',
+    // A path under /uploads is managed through the file input, not the URL field.
+    imageUrl: product?.imageUrl?.startsWith('http') ? product.imageUrl : '',
   });
+  const [file, setFile] = useState<File | null>(null);
+  const [removeImage, setRemoveImage] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+
+  const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => {
+    if (preview) URL.revokeObjectURL(preview);
+  }, [preview]);
+
+  const currentImage = removeImage ? null : product?.imageUrl ? resolveImageUrl(product.imageUrl) : null;
+  const shownImage = preview ?? currentImage;
+
+  function pickFile(picked: File | undefined) {
+    if (!picked) return;
+    const problem = validateImageFile(picked);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    setFile(picked);
+    setRemoveImage(false);
+  }
 
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -35,8 +64,8 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
         description: form.description,
         price: Number(form.price.replace(',', '.')),
         category: form.category,
-        ...(form.imageUrl.trim() && { imageUrl: form.imageUrl.trim() }),
-      });
+        ...(form.imageUrl.trim() && !removeImage && !file && { imageUrl: form.imageUrl.trim() }),
+      }, { file, remove: removeImage });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -73,9 +102,50 @@ export function ProductModal({ product, onSubmit, onClose }: Props) {
             <input value={form.category} onChange={set('category')} required maxLength={60} />
           </label>
         </div>
+        <div className="field">
+          <span>Imagem (opcional)</span>
+          <div className="image-field">
+            <div className="image-preview" aria-hidden={!shownImage}>
+              {shownImage ? <img src={shownImage} alt="Pré-visualização" /> : <span className="muted">Sem imagem</span>}
+            </div>
+            <div className="row-gap">
+              <label className="btn btn-ghost file-btn">
+                Escolher arquivo
+                <input
+                  type="file"
+                  accept={IMAGE_TYPES.join(',')}
+                  aria-label="Arquivo de imagem"
+                  onChange={(e) => {
+                    pickFile(e.target.files?.[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {(shownImage || product?.imageUrl) && !removeImage && (
+                <button
+                  type="button"
+                  className="btn btn-ghost danger"
+                  onClick={() => {
+                    setFile(null);
+                    setRemoveImage(true);
+                  }}
+                >
+                  Remover
+                </button>
+              )}
+            </div>
+          </div>
+          <small className="muted">PNG, JPEG ou WebP, até 2 MB.</small>
+        </div>
         <label className="field">
-          <span>URL da imagem (opcional)</span>
-          <input value={form.imageUrl} onChange={set('imageUrl')} type="url" placeholder="https://..." />
+          <span>ou URL da imagem</span>
+          <input
+            value={form.imageUrl}
+            onChange={set('imageUrl')}
+            type="url"
+            placeholder="https://..."
+            disabled={!!file}
+          />
           {fieldError('imageUrl') && <small className="field-error">{fieldError('imageUrl')}</small>}
         </label>
         {error && <div className="alert" role="alert">{error}</div>}

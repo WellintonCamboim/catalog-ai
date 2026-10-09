@@ -16,6 +16,18 @@ export function createApp({ llm = openRouterLlm }: { llm?: LlmClient } = {}) {
   app.use(cors({ origin: env.CORS_ORIGIN }));
   app.use(express.json({ limit: '100kb' }));
 
+  // Uploaded images are public-read: names are random UUIDs (unguessable) and <img> tags cannot
+  // send an Authorization header. Only files written by the upload endpoint live in this folder.
+  app.use(
+    '/uploads',
+    express.static(env.UPLOAD_DIR, {
+      index: false,
+      dotfiles: 'deny',
+      maxAge: '7d',
+      setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+    }),
+  );
+
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });

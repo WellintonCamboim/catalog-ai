@@ -55,7 +55,7 @@ export async function toApiError(res: Response): Promise<ApiError> {
 
 export async function request<T>(
   path: string,
-  options: { method?: string; body?: unknown; query?: Record<string, string | number | undefined> } = {},
+  options: { method?: string; body?: unknown | FormData; query?: Record<string, string | number | undefined> } = {},
 ): Promise<T> {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(options.query ?? {})) {
@@ -65,10 +65,12 @@ export async function request<T>(
 
   let res: Response;
   try {
+    // FormData sets its own multipart Content-Type (with boundary), so only JSON gets the header.
+    const isForm = options.body instanceof FormData;
     res = await fetch(`${BASE_URL}${path}${qs}`, {
       method: options.method ?? 'GET',
-      headers: authHeaders(options.body ? { 'Content-Type': 'application/json' } : {}),
-      body: options.body ? JSON.stringify(options.body) : undefined,
+      headers: authHeaders(options.body && !isForm ? { 'Content-Type': 'application/json' } : {}),
+      body: isForm ? (options.body as FormData) : options.body ? JSON.stringify(options.body) : undefined,
     });
   } catch {
     throw new ApiError(0, 'Não foi possível conectar ao servidor');
