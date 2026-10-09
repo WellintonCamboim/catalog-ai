@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env.js';
+import { authRouter } from './modules/auth/auth.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 export function createApp() {
@@ -15,7 +16,8 @@ export function createApp() {
     res.json({ status: 'ok' });
   });
 
-  // Os routers dos módulos (auth, products, chat) serão montados aqui.
+  app.use('/auth', authRouter);
+  // Os routers de products e chat serão montados aqui.
 
   app.use(notFoundHandler);
   app.use(errorHandler);
